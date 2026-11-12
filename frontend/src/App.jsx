@@ -36,7 +36,7 @@ export function App() {
       <AuctionProvider>
         <BrowserRouter>
           <Routes>
-            {/* Public Spectator Live Experience at Root (cbiding.vercel.app) */}
+            {/* Public Spectator Live Experience at Root (bidxnew.vercel.app) */}
             <Route path="/" element={<PublicLayout />}>
               <Route index element={<PublicLiveTracker />} />
               <Route path="players" element={<PublicPlayersDirectory />} />

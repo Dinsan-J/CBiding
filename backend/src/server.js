@@ -29,7 +29,7 @@ connectDB();
 // CORS configuration
 const allowedOrigins = process.env.CORS_ORIGIN 
   ? process.env.CORS_ORIGIN.split(',').map(s => s.trim())
-  : ['http://localhost:5173', 'https://cbiding.vercel.app'];
+  : ['http://localhost:5173', 'https://bidxnew.vercel.app', 'https://cbiding.vercel.app'];
 
 app.use(helmet({
   crossOriginResourcePolicy: false
