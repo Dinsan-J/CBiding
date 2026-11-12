@@ -33,6 +33,11 @@ const playerAcquisitionSchema = new mongoose.Schema(
       type: Number, 
       default: 1 
     },
+    acquisitionType: {
+      type: String,
+      enum: ['AUCTION_HAMMER', 'RETENTION_PRE_AUCTION', 'DIRECT_DRAFT'],
+      default: 'AUCTION_HAMMER'
+    },
     acquiredAt: { 
       type: Date, 
       default: Date.now 

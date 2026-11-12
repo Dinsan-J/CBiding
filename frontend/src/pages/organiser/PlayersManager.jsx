@@ -262,14 +262,15 @@ export const PlayersManager = () => {
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4 text-right">Base Price</th>
                     <th className="py-3 px-4 text-center">Status</th>
-                    <th className="py-3 px-4 text-right">Winning Bid</th>
+                    <th className="py-3 px-4">Franchise</th>
+                    <th className="py-3 px-4 text-right">Acquisition Fee</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-slate-200">
                   {filteredPlayers.map((player) => {
-                    const team = teams.find(t => t.id === player.winningTeamId);
+                    const team = teams.find(t => t.id === player.winningTeamId || t._id === player.winningTeamId || String(t.id || t._id) === String(player.winningTeamId));
                     return (
-                      <tr key={player.id} className="hover:bg-surface-accent/40 transition-colors">
+                      <tr key={player.id || player._id} className="hover:bg-surface-accent/40 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-400">
                           #{player.lotNumber}
                         </td>
@@ -293,12 +294,31 @@ export const PlayersManager = () => {
                           {formatCurrency(player.basePrice, activeTournament.currency)}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <Badge
-                            variant={player.status === 'SOLD' ? 'emerald' : player.status === 'UNSOLD' ? 'crimson' : player.status === 'LIVE' ? 'cyan' : 'default'}
-                            dot={player.status === 'SOLD' || player.status === 'LIVE'}
-                          >
-                            {player.status}
-                          </Badge>
+                          {player.isFixedPlayer ? (
+                            <Badge variant="gold" dot>FIXED / RETAINED</Badge>
+                          ) : (
+                            <Badge
+                              variant={player.status === 'SOLD' ? 'emerald' : player.status === 'UNSOLD' ? 'crimson' : player.status === 'LIVE' ? 'cyan' : 'default'}
+                              dot={player.status === 'SOLD' || player.status === 'LIVE'}
+                            >
+                              {player.status}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 font-semibold">
+                          {team ? (
+                            <div className="flex items-center gap-1.5">
+                              <span 
+                                className="w-5 h-5 rounded text-[10px] font-bold text-white flex items-center justify-center shrink-0"
+                                style={{ backgroundColor: team.primaryColor || '#06B6D4' }}
+                              >
+                                {team.shortName}
+                              </span>
+                              <span className="truncate max-w-[120px]">{team.name}</span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 font-mono text-[11px]">-</span>
+                          )}
                         </td>
                         <td className="py-3 px-4 font-mono text-right font-bold text-brand-emerald">
                           {player.finalPrice ? formatCurrency(player.finalPrice, activeTournament.currency) : '-'}

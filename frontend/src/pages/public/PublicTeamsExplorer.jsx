@@ -124,13 +124,21 @@ export const PublicTeamsExplorer = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                           {acquiredPlayers.map((player) => (
                             <div
-                              key={player.id}
+                              key={player.id || player._id}
                               className="flex items-center justify-between p-3 rounded-xl bg-canvas border border-border-subtle hover:border-slate-600 transition-colors"
                             >
-                              <div className="truncate">
-                                <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${getRoleBadgeClass(player.role)}`}>
-                                  {getRoleLabel(player.role)}
-                                </span>
+                              <div className="truncate pr-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${getRoleBadgeClass(player.role)}`}>
+                                    {getRoleLabel(player.role)}
+                                  </span>
+                                  {player.isFixedPlayer && (
+                                    <Badge variant="gold" size="sm" dot>FIXED</Badge>
+                                  )}
+                                  {player.isOverseas && (
+                                    <Badge variant="purple" size="sm">OS</Badge>
+                                  )}
+                                </div>
                                 <h5 className="text-sm font-bold text-white truncate mt-1">
                                   {player.fullName}
                                 </h5>
@@ -144,7 +152,7 @@ export const PublicTeamsExplorer = () => {
                                   {formatCurrency(player.finalPrice, activeTournament.currency)}
                                 </span>
                                 <span className="text-[9px] text-slate-500 font-mono">
-                                  Final Bid
+                                  {player.isFixedPlayer ? 'Fixed Fee' : 'Auction Bid'}
                                 </span>
                               </div>
                             </div>

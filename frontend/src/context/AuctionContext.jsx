@@ -234,6 +234,29 @@ export const AuctionProvider = ({ children }) => {
       }
     });
 
+    // 6. Fixed / Retained Player Assigned
+    socket.on('fixed_player_assigned', ({ player, team }) => {
+      const tId = team._id || team.id;
+      const pId = player._id || player.id;
+      setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...team, id: tId } : t));
+      setPlayers(prev => {
+        const exists = prev.some(p => p.id === pId || p._id === pId);
+        if (exists) {
+          return prev.map(p => (p.id === pId || p._id === pId) ? { ...p, ...player, id: pId } : p);
+        } else {
+          return [{ ...player, id: pId }, ...prev];
+        }
+      });
+    });
+
+    // 7. Fixed / Retained Player Removed
+    socket.on('fixed_player_removed', ({ player, team }) => {
+      const tId = team._id || team.id;
+      const pId = player._id || player.id;
+      setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...team, id: tId } : t));
+      setPlayers(prev => prev.map(p => (p.id === pId || p._id === pId) ? { ...p, ...player, id: pId } : p));
+    });
+
     return () => {
       leaveAuctionRoom(auctionRoomId);
       socket.off('bid_placed');
@@ -241,6 +264,8 @@ export const AuctionProvider = ({ children }) => {
       socket.off('lot_unsold');
       socket.off('lot_selected');
       socket.off('bid_undone');
+      socket.off('fixed_player_assigned');
+      socket.off('fixed_player_removed');
     };
   }, [auctionDbId]);
 
@@ -654,6 +679,55 @@ export const AuctionProvider = ({ children }) => {
     setTeams(prev => prev.filter(t => t.id !== teamId && t._id !== teamId));
   }, []);
 
+  // Action: Assign Fixed / Retained Player to Team
+  const assignFixedPlayer = useCallback(async (teamId, payload) => {
+    try {
+      const res = await api.addFixedPlayer(teamId, payload);
+      if (res?.success && res.data) {
+        const { team: updatedTeam, player: updatedPlayer } = res.data;
+        const tId = updatedTeam._id || updatedTeam.id;
+        const pId = updatedPlayer._id || updatedPlayer.id;
+
+        setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...updatedTeam, id: tId } : t));
+        setPlayers(prev => {
+          const exists = prev.some(p => p.id === pId || p._id === pId);
+          if (exists) {
+            return prev.map(p => (p.id === pId || p._id === pId) ? { ...p, ...updatedPlayer, id: pId } : p);
+          } else {
+            return [{ ...updatedPlayer, id: pId }, ...prev];
+          }
+        });
+
+        return { success: true, team: updatedTeam, player: updatedPlayer, message: res.message };
+      }
+      return { success: false, error: res?.error || 'Failed to assign fixed player' };
+    } catch (err) {
+      console.error('[AuctionContext] assignFixedPlayer error:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
+  // Action: Remove Fixed / Retained Player from Team
+  const unassignFixedPlayer = useCallback(async (teamId, playerId) => {
+    try {
+      const res = await api.removeFixedPlayer(teamId, playerId);
+      if (res?.success && res.data) {
+        const { team: updatedTeam, player: updatedPlayer } = res.data;
+        const tId = updatedTeam._id || updatedTeam.id;
+        const pId = updatedPlayer._id || updatedPlayer.id;
+
+        setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...updatedTeam, id: tId } : t));
+        setPlayers(prev => prev.map(p => (p.id === pId || p._id === pId) ? { ...p, ...updatedPlayer, id: pId } : p));
+
+        return { success: true, team: updatedTeam, player: updatedPlayer, message: res.message };
+      }
+      return { success: false, error: res?.error || 'Failed to remove fixed player' };
+    } catch (err) {
+      console.error('[AuctionContext] unassignFixedPlayer error:', err);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
   // Action: Delete Player
   const deletePlayer = useCallback(async (playerId) => {
     try {
@@ -724,6 +798,8 @@ export const AuctionProvider = ({ children }) => {
       teams,
       createTeam,
       deleteTeam,
+      assignFixedPlayer,
+      unassignFixedPlayer,
       players,
       createPlayer,
       deletePlayer,

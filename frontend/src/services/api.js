@@ -91,6 +91,15 @@ export const api = {
     request(`/teams/${id}`, {
       method: 'DELETE'
     }),
+  addFixedPlayer: (teamId, data) => 
+    request(`/teams/${teamId}/fixed-player`, {
+      method: 'POST',
+      body: JSON.stringify(data)
+    }),
+  removeFixedPlayer: (teamId, playerId) => 
+    request(`/teams/${teamId}/fixed-player/${playerId}`, {
+      method: 'DELETE'
+    }),
 
   // Players
   getPlayers: (auctionId, params = {}) => {

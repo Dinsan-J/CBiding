@@ -138,6 +138,62 @@ runTest('Should handle unconfigured acquisition alert without throwing unhandled
 });
 
 // -------------------------------------------------------------
+// 4. FIXED & RETAINED PLAYER ALLOCATION LOGIC
+// -------------------------------------------------------------
+console.log('\n=== 4. Fixed & Retained Player Allocation Logic ===');
+
+function validateFixedPlayerAllocation(team, auction, retentionFee, isOverseas = false) {
+  if (team.squadCount >= auction.maxSquadSize) {
+    return { eligible: false, reason: 'Max squad limit reached' };
+  }
+  if (isOverseas && team.overseasCount >= auction.maxOverseas) {
+    return { eligible: false, reason: 'Overseas quota exceeded' };
+  }
+  if (retentionFee > team.remainingPurse) {
+    return { eligible: false, reason: 'Retention fee exceeds remaining purse' };
+  }
+  const slotsRemainingAfter = Math.max(0, auction.minSquadSize - (team.squadCount + 1));
+  const requiredReserve = slotsRemainingAfter * auction.minBasePrice;
+  if (team.remainingPurse - retentionFee < requiredReserve) {
+    return { eligible: false, reason: 'Retention fee breaches squad reserve' };
+  }
+  return { eligible: true };
+}
+
+runTest('Should allow valid fixed player allocation when budget and reserve math pass', () => {
+  const team = {
+    remainingPurse: 20000000,
+    squadCount: 3,
+    overseasCount: 1
+  };
+  const res = validateFixedPlayerAllocation(team, mockAuction, 5000000, false);
+  assert.strictEqual(res.eligible, true);
+});
+
+runTest('Should REJECT fixed player allocation if overseas limit is reached', () => {
+  const team = {
+    remainingPurse: 20000000,
+    squadCount: 3,
+    overseasCount: 5 // Max overseas is 5
+  };
+  const res = validateFixedPlayerAllocation(team, mockAuction, 1000000, true);
+  assert.strictEqual(res.eligible, false);
+  assert.ok(res.reason.includes('Overseas quota exceeded'));
+});
+
+runTest('Should REJECT fixed player allocation if retention fee breaches squad reserve', () => {
+  const team = {
+    remainingPurse: 1500000, // 1.5M
+    squadCount: 2, // Needs min 15 - (2+1) = 12 slots remaining. Reserve needed = 12 * 100k = 1.2M
+    overseasCount: 0
+  };
+  // Remaining purse is 1.5M. Allowed fee = 1.5M - 1.2M = 300,000.
+  const res = validateFixedPlayerAllocation(team, mockAuction, 500000, false);
+  assert.strictEqual(res.eligible, false);
+  assert.ok(res.reason.includes('breaches squad reserve'));
+});
+
+// -------------------------------------------------------------
 // TEST SUMMARY
 // -------------------------------------------------------------
 console.log(`\n======================================================`);

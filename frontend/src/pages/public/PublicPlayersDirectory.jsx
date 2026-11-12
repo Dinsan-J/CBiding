@@ -191,7 +191,9 @@ export const PublicPlayersDirectory = () => {
                           >
                             {team.shortName}
                           </span>
-                          <span className="font-semibold text-white truncate">{team.name}</span>
+                          <span className="font-semibold text-white truncate">
+                            {team.name} {player.isFixedPlayer && <span className="text-amber-400 font-bold text-[10px] ml-1">(Fixed)</span>}
+                          </span>
                         </div>
                         <span className="font-mono font-black text-brand-emerald text-sm shrink-0">
                           {formatCurrency(player.finalPrice, activeTournament.currency)}

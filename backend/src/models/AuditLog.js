@@ -23,7 +23,9 @@ const auditLogSchema = new mongoose.Schema(
         'AUCTION_PAUSED',
         'AUCTION_RESUMED',
         'LOT_SELECTED',
-        'PLAYER_APPROVED'
+        'PLAYER_APPROVED',
+        'FIXED_PLAYER_ASSIGNED',
+        'FIXED_PLAYER_REMOVED'
       ], 
       required: true 
     },

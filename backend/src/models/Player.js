@@ -74,9 +74,15 @@ const playerSchema = new mongoose.Schema(
     // Lifecycle Status
     status: { 
       type: String, 
-      enum: ['REGISTERED', 'APPROVED', 'QUEUED', 'LIVE', 'SOLD', 'UNSOLD'], 
+      enum: ['REGISTERED', 'APPROVED', 'QUEUED', 'LIVE', 'SOLD', 'UNSOLD', 'RETAINED'], 
       default: 'APPROVED',
       index: true 
+    },
+    isFixedPlayer: { type: Boolean, default: false },
+    retentionType: { 
+      type: String, 
+      enum: ['AUCTION', 'FIXED_RETENTION', 'DIRECT_DRAFT'], 
+      default: 'AUCTION' 
     },
 
     // Final Outcome
