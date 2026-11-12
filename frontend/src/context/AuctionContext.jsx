@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
+import { getSocket, joinAuctionRoom, leaveAuctionRoom } from '../services/socket';
 import { 
   INITIAL_TOURNAMENTS, 
   INITIAL_TEAMS, 
@@ -105,6 +106,95 @@ export const AuctionProvider = ({ children }) => {
     fetchLiveData();
     return () => { isMounted = false; };
   }, []);
+
+  // Real-time WebSocket Listeners (Socket.IO)
+  useEffect(() => {
+    const socket = getSocket();
+    const auctionRoomId = '6af553972c9ef2619668f184'; // CPL 2026 Room ID
+    joinAuctionRoom(auctionRoomId);
+
+    // 1. Live Bid Placed
+    socket.on('bid_placed', ({ bid, team, player }) => {
+      setActiveLot(prev => ({
+        ...prev,
+        currentBid: bid.amount,
+        highestBidderTeamId: team._id || team.id,
+        bidCount: bid.bidSequence || prev.bidCount + 1,
+        timerSeconds: 30,
+        isTimerRunning: true,
+        bidHistory: [
+          {
+            id: bid._id || Date.now(),
+            teamId: team._id || team.id,
+            amount: bid.amount,
+            timestamp: new Date(bid.timestamp || Date.now()).toLocaleTimeString()
+          },
+          ...prev.bidHistory
+        ]
+      }));
+    });
+
+    // 2. Lot Hammer SOLD
+    socket.on('lot_sold', ({ player, team, acquisition }) => {
+      const winningPrice = acquisition?.finalBidAmount || activeLot.currentBid;
+      const teamId = team._id || team.id;
+      const playerId = player._id || player.id;
+
+      setSoldEvent({
+        isOpen: true,
+        player,
+        team,
+        finalBid: winningPrice
+      });
+
+      setPlayers(prev => prev.map(p => 
+        (p.id === playerId || p._id === playerId) 
+          ? { ...p, status: 'SOLD', winningTeamId: teamId, finalPrice: winningPrice } 
+          : p
+      ));
+
+      setTeams(prev => prev.map(t => 
+        (t.id === teamId || t._id === teamId)
+          ? {
+              ...t,
+              remainingPurse: t.remainingPurse - winningPrice,
+              totalSpent: t.totalSpent + winningPrice,
+              squadCount: t.squadCount + 1
+            }
+          : t
+      ));
+    });
+
+    // 3. Lot Hammer UNSOLD
+    socket.on('lot_unsold', ({ player }) => {
+      const playerId = player._id || player.id;
+      setPlayers(prev => prev.map(p => 
+        (p.id === playerId || p._id === playerId) ? { ...p, status: 'UNSOLD' } : p
+      ));
+    });
+
+    // 4. Next Lot Selected
+    socket.on('lot_selected', ({ player }) => {
+      const playerId = player._id || player.id;
+      setActiveLot({
+        playerId,
+        currentBid: player.basePrice,
+        highestBidderTeamId: null,
+        bidCount: 0,
+        timerSeconds: 30,
+        isTimerRunning: true,
+        bidHistory: []
+      });
+    });
+
+    return () => {
+      leaveAuctionRoom(auctionRoomId);
+      socket.off('bid_placed');
+      socket.off('lot_sold');
+      socket.off('lot_unsold');
+      socket.off('lot_selected');
+    };
+  }, [activeLot.currentBid]);
 
   // Action: Place Bid
   const placeBid = useCallback((teamId, amount) => {
