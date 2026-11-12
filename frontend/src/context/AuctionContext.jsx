@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { api } from '../services/api';
 import { 
   INITIAL_TOURNAMENTS, 
   INITIAL_TEAMS, 
@@ -62,6 +63,48 @@ export const AuctionProvider = ({ children }) => {
     }
     return () => clearInterval(ticker);
   }, [activeLot.isTimerRunning, activeLot.timerSeconds]);
+
+  // Live Backend Data Synchronization
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLiveData = async () => {
+      try {
+        const res = await api.getPublicBroadcast('cpl-2026');
+        if (isMounted && res?.success && res.data) {
+          const { auction, teams: liveTeams, players: livePlayers } = res.data;
+          if (liveTeams?.length > 0) {
+            setTeams(liveTeams.map(t => ({
+              ...t,
+              id: t._id,
+              shortName: t.shortName,
+              ownerName: t.ownerName
+            })));
+          }
+          if (livePlayers?.length > 0) {
+            setPlayers(livePlayers.map(p => ({
+              ...p,
+              id: p._id,
+              fullName: p.fullName
+            })));
+          }
+          if (auction?.currentLot?.playerId) {
+            setActiveLot(prev => ({
+              ...prev,
+              playerId: auction.currentLot.playerId._id || auction.currentLot.playerId,
+              currentBid: auction.currentLot.currentBid,
+              highestBidderTeamId: auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId,
+              bidCount: auction.currentLot.bidCount,
+              isTimerRunning: auction.currentLot.isTimerRunning
+            }));
+          }
+        }
+      } catch (err) {
+        console.warn('[BidX Context] Running in offline fallback mode:', err.message);
+      }
+    };
+    fetchLiveData();
+    return () => { isMounted = false; };
+  }, []);
 
   // Action: Place Bid
   const placeBid = useCallback((teamId, amount) => {

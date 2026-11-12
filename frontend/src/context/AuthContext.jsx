@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { api } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -27,13 +28,35 @@ export const AuthProvider = ({ children }) => {
     const trimmedId = (identifier || '').trim().toLowerCase();
     const trimmedPw = (password || '').trim();
 
-    // Check credentials
+    // 1. Try Live Backend API First
+    try {
+      const res = await api.login(trimmedId, trimmedPw);
+      if (res && res.success && res.token) {
+        const userData = {
+          id: res.user.id,
+          username: res.user.username || trimmedId,
+          email: res.user.email,
+          displayName: res.user.fullName || 'Chief Auction Organiser',
+          role: res.user.role || 'ADMIN',
+          tenantId: res.user.tenantId,
+          tenantName: res.user.tenantName,
+          token: res.token,
+          loginAt: new Date().toISOString()
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+        setUser(userData);
+        return userData;
+      }
+    } catch (apiErr) {
+      console.warn('[BidX Auth] Live API unavailable or failed:', apiErr.message);
+    }
+
+    // 2. Local Fallback for offline mode / demo credentials
     const match = VALID_CREDENTIALS.find(c => 
       (c.username.toLowerCase() === trimmedId || c.email.toLowerCase() === trimmedId) && 
       c.password === trimmedPw
     );
 
-    // Also allow 'admin' / 'admin' as fallback
     const isValid = match || (trimmedId === 'admin' && trimmedPw === 'admin');
 
     if (!isValid) {
@@ -46,7 +69,7 @@ export const AuthProvider = ({ children }) => {
       email: match ? match.email : 'admin@bidx.com',
       displayName: 'SLC Chief Organiser',
       role: 'ADMIN',
-      tenantId: 'tenant_slc_2026',
+      tenantId: '6af553962c9ef2619668f17c',
       token: 'jwt_mock_token_admin_' + Date.now(),
       loginAt: new Date().toISOString()
     };
