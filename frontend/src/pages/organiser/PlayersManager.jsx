@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -11,7 +11,8 @@ import {
   Search, 
   Plus, 
   Trash2,
-  Trophy
+  Trophy,
+  RefreshCw
 } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
 import { Button } from '../../components/ui/Button';
@@ -40,12 +41,22 @@ export const PlayersManager = () => {
   const activeTab = searchParams.get('tab') || 'roster'; // 'roster', 'approvals', 'import'
   const setActiveTab = (tab) => setSearchParams({ tab });
 
-  // Refresh registrations when opening approvals
-  React.useEffect(() => {
-    if (activeTab === 'approvals' && typeof fetchRegistrations === 'function') {
-      fetchRegistrations();
+  // Loading state & fetch registrations on mount and tab change
+  const [isLoadingRegs, setIsLoadingRegs] = useState(false);
+  const loadRegistrations = useCallback(async () => {
+    if (typeof fetchRegistrations === 'function') {
+      setIsLoadingRegs(true);
+      try {
+        await fetchRegistrations();
+      } finally {
+        setIsLoadingRegs(false);
+      }
     }
-  }, [activeTab, fetchRegistrations]);
+  }, [fetchRegistrations]);
+
+  useEffect(() => {
+    loadRegistrations();
+  }, [loadRegistrations]);
 
   // Search & Filter in Roster
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,9 +89,12 @@ export const PlayersManager = () => {
   const [importedData, setImportedData] = useState([]);
   const [importStatus, setImportStatus] = useState(null);
 
+  // Filter pending registrations from MongoDB
+  const pendingRegistrations = registrations.filter(r => r.status === 'PENDING' || !r.status);
+
   const tabs = [
     { id: 'roster', label: 'Approved Roster', icon: Users, count: players.length },
-    { id: 'approvals', label: 'Pending Approvals', icon: CheckCircle2, count: registrations.length },
+    { id: 'approvals', label: 'Pending Approvals', icon: CheckCircle2, count: pendingRegistrations.length },
     { id: 'import', label: 'Bulk Excel Import', icon: FileSpreadsheet },
   ];
 
@@ -308,16 +322,36 @@ export const PlayersManager = () => {
             exit="exit"
             className="space-y-4"
           >
-            {registrations.length === 0 ? (
+            <div className="flex items-center justify-between pb-1">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Pending Committee Review</span>
+                  <Badge variant="gold">{pendingRegistrations.length}</Badge>
+                </h3>
+                <p className="text-xs text-slate-400">Applications submitted from public self-registration</p>
+              </div>
+
+              <Button
+                size="xs"
+                variant="outline"
+                leftIcon={RefreshCw}
+                isLoading={isLoadingRegs}
+                onClick={loadRegistrations}
+              >
+                Refresh Applications
+              </Button>
+            </div>
+
+            {pendingRegistrations.length === 0 ? (
               <Card className="p-12 text-center text-slate-400">
                 <CheckCircle2 className="w-12 h-12 text-brand-emerald mx-auto mb-3" />
                 <h4 className="text-base font-bold text-white">Zero Pending Applications</h4>
-                <p className="text-xs text-slate-500 mt-1">All player submissions have been reviewed.</p>
+                <p className="text-xs text-slate-500 mt-1">All player submissions have been reviewed or no new submissions exist.</p>
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {registrations.map((reg) => (
-                  <Card key={reg.id || reg._id} className="p-5 flex flex-col justify-between bg-surface-card border-border-subtle">
+                {pendingRegistrations.map((reg) => (
+                  <Card key={reg.id || reg._id} className="p-5 flex flex-col justify-between bg-surface-card border-border-subtle hover:border-brand-gold/40 transition-colors">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Badge variant="gold" dot>NEW REGISTRATION</Badge>

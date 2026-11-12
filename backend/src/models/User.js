@@ -72,7 +72,17 @@ userSchema.methods.getSignedJwtToken = function () {
   let expiresIn = process.env.JWT_EXPIRES_IN;
   if (!expiresIn || expiresIn === '0' || expiresIn === 0 || expiresIn === '0s') {
     expiresIn = '7d';
+  } else if (!isNaN(Number(expiresIn))) {
+    const num = Number(expiresIn);
+    if (num <= 365 && num > 0) {
+      expiresIn = `${num}d`;
+    } else if (num > 365) {
+      expiresIn = num;
+    } else {
+      expiresIn = '7d';
+    }
   }
+
   const tenantIdStr = this.tenantId?._id ? this.tenantId._id.toString() : (this.tenantId ? this.tenantId.toString() : null);
   return jwt.sign(
     { 
