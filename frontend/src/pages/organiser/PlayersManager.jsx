@@ -28,6 +28,8 @@ export const PlayersManager = () => {
     players, 
     teams, 
     registrations, 
+    fetchRegistrations,
+    createPlayer,
     approveRegistration, 
     rejectRegistration, 
     importPlayers, 
@@ -38,11 +40,35 @@ export const PlayersManager = () => {
   const activeTab = searchParams.get('tab') || 'roster'; // 'roster', 'approvals', 'import'
   const setActiveTab = (tab) => setSearchParams({ tab });
 
+  // Refresh registrations when opening approvals
+  React.useEffect(() => {
+    if (activeTab === 'approvals' && typeof fetchRegistrations === 'function') {
+      fetchRegistrations();
+    }
+  }, [activeTab, fetchRegistrations]);
+
   // Search & Filter in Roster
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Add Player Modal State
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isCreatingPlayer, setIsCreatingPlayer] = useState(false);
+  const [addPlayerForm, setAddPlayerForm] = useState({
+    fullName: '',
+    role: 'TOP_ORDER_BATTER',
+    battingStyle: 'RIGHT_HAND',
+    bowlingStyle: 'Right-arm medium',
+    age: 24,
+    category: 'CATEGORY_A',
+    basePrice: 1500000,
+    photoUrl: '',
+    isOverseas: false,
+    country: 'Sri Lanka'
+  });
+
   // Approval Modal State
   const [selectedReg, setSelectedReg] = useState(null);
+  const [isApproving, setIsApproving] = useState(false);
   const [approvalForm, setApprovalForm] = useState({
     basePrice: 2000000,
     category: 'CATEGORY_A'
@@ -58,11 +84,49 @@ export const PlayersManager = () => {
     { id: 'import', label: 'Bulk Excel Import', icon: FileSpreadsheet },
   ];
 
-  const handleApproveSubmit = (e) => {
+  const handleCreatePlayerSubmit = async (e) => {
+    e.preventDefault();
+    if (!addPlayerForm.fullName.trim()) return;
+    setIsCreatingPlayer(true);
+    try {
+      await createPlayer({
+        ...addPlayerForm,
+        basePrice: Number(addPlayerForm.basePrice),
+        age: Number(addPlayerForm.age)
+      });
+      setIsAddModalOpen(false);
+      setAddPlayerForm({
+        fullName: '',
+        role: 'TOP_ORDER_BATTER',
+        battingStyle: 'RIGHT_HAND',
+        bowlingStyle: 'Right-arm medium',
+        age: 24,
+        category: 'CATEGORY_A',
+        basePrice: 1500000,
+        photoUrl: '',
+        isOverseas: false,
+        country: 'Sri Lanka'
+      });
+      setActiveTab('roster');
+    } catch (err) {
+      console.error('Failed to create player:', err);
+    } finally {
+      setIsCreatingPlayer(false);
+    }
+  };
+
+  const handleApproveSubmit = async (e) => {
     e.preventDefault();
     if (!selectedReg) return;
-    approveRegistration(selectedReg.id, approvalForm.basePrice, approvalForm.category);
-    setSelectedReg(null);
+    setIsApproving(true);
+    try {
+      await approveRegistration(selectedReg.id || selectedReg._id, approvalForm.basePrice, approvalForm.category);
+      setSelectedReg(null);
+    } catch (err) {
+      console.error('Failed to approve registration:', err);
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -120,6 +184,15 @@ export const PlayersManager = () => {
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            leftIcon={Plus}
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            Add Player
+          </Button>
+
           <Button
             variant="outline"
             size="sm"
@@ -244,7 +317,7 @@ export const PlayersManager = () => {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {registrations.map((reg) => (
-                  <Card key={reg.id} className="p-5 flex flex-col justify-between bg-surface-card border-border-subtle">
+                  <Card key={reg.id || reg._id} className="p-5 flex flex-col justify-between bg-surface-card border-border-subtle">
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Badge variant="gold" dot>NEW REGISTRATION</Badge>
@@ -258,8 +331,8 @@ export const PlayersManager = () => {
 
                       <div className="p-3 bg-surface-accent rounded-xl border border-border-subtle text-xs space-y-1 font-mono">
                         <p><span className="text-slate-400">Contact:</span> <strong className="text-white">{reg.contactNumber}</strong></p>
-                        <p><span className="text-slate-400">Email:</span> <span className="text-slate-300">{reg.email}</span></p>
-                        <p><span className="text-slate-400">Stats:</span> <span className="text-brand-cyan">{reg.matches} Matches • {reg.runs} Runs • {reg.wickets} Wkts</span></p>
+                        {reg.email && <p><span className="text-slate-400">Email:</span> <span className="text-slate-300">{reg.email}</span></p>}
+                        <p><span className="text-slate-400">Stats:</span> <span className="text-brand-cyan">{reg.matches || 0} Matches • {reg.runs || 0} Runs • {reg.wickets || 0} Wkts</span></p>
                       </div>
                     </div>
 
@@ -268,7 +341,7 @@ export const PlayersManager = () => {
                         size="xs"
                         variant="danger"
                         leftIcon={XCircle}
-                        onClick={() => rejectRegistration(reg.id)}
+                        onClick={() => rejectRegistration(reg.id || reg._id)}
                       >
                         Reject
                       </Button>
@@ -406,8 +479,120 @@ export const PlayersManager = () => {
             <Button variant="outline" onClick={() => setSelectedReg(null)}>
               Cancel
             </Button>
-            <Button type="submit" variant="success">
+            <Button type="submit" variant="success" isLoading={isApproving}>
               Approve & Sequence Lot
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* DIRECT ADD PLAYER MODAL */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add Player Directly to Roster"
+        subtitle="Create an official auction lot directly into MongoDB"
+      >
+        <form onSubmit={handleCreatePlayerSubmit} className="space-y-4">
+          <Input
+            label="Full Name *"
+            placeholder="e.g. Wanindu Hasaranga"
+            required
+            value={addPlayerForm.fullName}
+            onChange={(e) => setAddPlayerForm({ ...addPlayerForm, fullName: e.target.value })}
+          />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Playing Role *
+              </label>
+              <select
+                value={addPlayerForm.role}
+                onChange={(e) => setAddPlayerForm({ ...addPlayerForm, role: e.target.value })}
+                className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-xs text-slate-100"
+              >
+                <option value="TOP_ORDER_BATTER">Top-order Batter</option>
+                <option value="MIDDLE_ORDER_BATTER">Middle-order Batter</option>
+                <option value="WICKETKEEPER_BATTER">Wicketkeeper Batter</option>
+                <option value="PACE_ALL_ROUNDER">Pace All-rounder</option>
+                <option value="SPIN_ALL_ROUNDER">Spin All-rounder</option>
+                <option value="FAST_BOWLER">Fast Bowler</option>
+                <option value="SPIN_BOWLER">Spin Bowler</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Category Tier *
+              </label>
+              <select
+                value={addPlayerForm.category}
+                onChange={(e) => setAddPlayerForm({ ...addPlayerForm, category: e.target.value })}
+                className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-xs text-slate-100"
+              >
+                <option value="MARQUEE">Marquee Lot</option>
+                <option value="CATEGORY_A">Category A</option>
+                <option value="CATEGORY_B">Category B</option>
+                <option value="CATEGORY_C">Category C</option>
+                <option value="EMERGING">Emerging Player</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Input
+              label="Base Price (LKR) *"
+              type="number"
+              required
+              value={addPlayerForm.basePrice}
+              onChange={(e) => setAddPlayerForm({ ...addPlayerForm, basePrice: Number(e.target.value) })}
+            />
+
+            <Input
+              label="Age"
+              type="number"
+              value={addPlayerForm.age}
+              onChange={(e) => setAddPlayerForm({ ...addPlayerForm, age: Number(e.target.value) })}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
+                Batting Style
+              </label>
+              <select
+                value={addPlayerForm.battingStyle}
+                onChange={(e) => setAddPlayerForm({ ...addPlayerForm, battingStyle: e.target.value })}
+                className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-xs text-slate-100"
+              >
+                <option value="RIGHT_HAND">Right-hand bat</option>
+                <option value="LEFT_HAND">Left-hand bat</option>
+              </select>
+            </div>
+
+            <Input
+              label="Bowling Style"
+              placeholder="e.g. Right-arm leg break"
+              value={addPlayerForm.bowlingStyle}
+              onChange={(e) => setAddPlayerForm({ ...addPlayerForm, bowlingStyle: e.target.value })}
+            />
+          </div>
+
+          <Input
+            label="Photo URL"
+            placeholder="https://images.unsplash.com/..."
+            value={addPlayerForm.photoUrl}
+            onChange={(e) => setAddPlayerForm({ ...addPlayerForm, photoUrl: e.target.value })}
+          />
+
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-subtle">
+            <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" isLoading={isCreatingPlayer}>
+              Add Player to Roster
             </Button>
           </div>
         </form>

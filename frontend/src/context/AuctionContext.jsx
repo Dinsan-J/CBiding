@@ -14,6 +14,7 @@ export const AuctionProvider = ({ children }) => {
   // Tournaments State
   const [tournaments, setTournaments] = useState(INITIAL_TOURNAMENTS);
   const [activeTournamentId, setActiveTournamentId] = useState("tourn-cpl-2026");
+  const [auctionDbId, setAuctionDbId] = useState("6af553972c9ef2619668f184");
 
   // Teams & Players State
   const [teams, setTeams] = useState(INITIAL_TEAMS);
@@ -65,6 +66,26 @@ export const AuctionProvider = ({ children }) => {
     return () => clearInterval(ticker);
   }, [activeLot.isTimerRunning, activeLot.timerSeconds]);
 
+  // Fetch Registrations from Backend
+  const fetchRegistrations = useCallback(async (targetAuctionId) => {
+    const id = targetAuctionId || auctionDbId;
+    if (!id) return;
+    try {
+      const res = await api.getRegistrations(id);
+      if (res?.success && Array.isArray(res.data)) {
+        setRegistrations(res.data.map(r => ({
+          ...r,
+          id: r._id,
+          matches: r.stats?.matches || 0,
+          runs: r.stats?.runs || 0,
+          wickets: r.stats?.wickets || 0
+        })));
+      }
+    } catch (err) {
+      console.warn('[BidX Context] Could not fetch registrations from server:', err.message);
+    }
+  }, [auctionDbId]);
+
   // Live Backend Data Synchronization
   useEffect(() => {
     let isMounted = true;
@@ -73,6 +94,9 @@ export const AuctionProvider = ({ children }) => {
         const res = await api.getPublicBroadcast('cpl-2026');
         if (isMounted && res?.success && res.data) {
           const { auction, teams: liveTeams, players: livePlayers } = res.data;
+          if (auction?._id) {
+            setAuctionDbId(auction._id);
+          }
           if (liveTeams?.length > 0) {
             setTeams(liveTeams.map(t => ({
               ...t,
@@ -98,6 +122,11 @@ export const AuctionProvider = ({ children }) => {
               isTimerRunning: auction.currentLot.isTimerRunning
             }));
           }
+
+          // Also fetch backend registrations
+          if (auction?._id) {
+            fetchRegistrations(auction._id);
+          }
         }
       } catch (err) {
         console.warn('[BidX Context] Running in offline fallback mode:', err.message);
@@ -105,7 +134,7 @@ export const AuctionProvider = ({ children }) => {
     };
     fetchLiveData();
     return () => { isMounted = false; };
-  }, []);
+  }, [fetchRegistrations]);
 
   // Real-time WebSocket Listeners (Socket.IO)
   useEffect(() => {
@@ -348,45 +377,118 @@ export const AuctionProvider = ({ children }) => {
     ));
   }, []);
 
-  // Action: Review & Approve Registration
-  const approveRegistration = useCallback((regId, basePrice, category) => {
-    const reg = registrations.find(r => r.id === regId);
-    if (!reg) return;
-
-    const newPlayer = {
-      id: `ply-${Date.now()}`,
-      auctionId: reg.auctionId,
-      lotNumber: players.length + 1,
-      fullName: reg.fullName,
-      role: reg.role,
-      battingStyle: reg.battingStyle,
-      bowlingStyle: reg.bowlingStyle,
-      isOverseas: false,
-      country: "Sri Lanka",
-      age: reg.age,
-      category,
-      basePrice: Number(basePrice),
-      status: 'QUEUED',
-      stats: {
-        matches: reg.matches || 0,
-        runs: reg.runs || 0,
-        wickets: reg.wickets || 0,
-        battingAverage: 24.5,
-        strikeRate: 130.0,
-        economy: 7.5,
-        highestScore: "65*",
-        bestBowling: "3/20"
+  // Action: Submit Public Player Registration
+  const registerPlayer = useCallback(async (registrationData, slug = 'cpl-2026') => {
+    try {
+      const res = await api.registerSelf(slug, registrationData);
+      if (res?.success && res.data) {
+        const newReg = {
+          ...res.data,
+          id: res.data._id,
+          matches: res.data.stats?.matches || 0,
+          runs: res.data.stats?.runs || 0,
+          wickets: res.data.stats?.wickets || 0
+        };
+        setRegistrations(prev => [newReg, ...prev.filter(r => r.contactNumber !== newReg.contactNumber)]);
       }
-    };
+      return res;
+    } catch (err) {
+      console.error('[BidX Context] Registration error:', err);
+      throw err;
+    }
+  }, []);
 
-    setPlayers(prev => [...prev, newPlayer]);
-    setRegistrations(prev => prev.filter(r => r.id !== regId));
-  }, [registrations, players.length]);
+  // Action: Review & Approve Registration
+  const approveRegistration = useCallback(async (regId, basePrice, category) => {
+    try {
+      const res = await api.reviewRegistration(regId, {
+        status: 'APPROVED',
+        assignedBasePrice: Number(basePrice),
+        assignedCategory: category
+      });
+
+      if (res?.success && res.data?.player) {
+        const createdPlayer = {
+          ...res.data.player,
+          id: res.data.player._id
+        };
+        setPlayers(prev => [...prev, createdPlayer]);
+      }
+
+      setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
+      return { success: true };
+    } catch (err) {
+      console.warn('[BidX Context] Review registration API failed, applying local fallback:', err.message);
+      // Fallback local update
+      const reg = registrations.find(r => r.id === regId || r._id === regId);
+      if (reg) {
+        const fallbackPlayer = {
+          id: `ply-${Date.now()}`,
+          auctionId: reg.auctionId || auctionDbId,
+          lotNumber: players.length + 1,
+          fullName: reg.fullName,
+          role: reg.role,
+          battingStyle: reg.battingStyle,
+          bowlingStyle: reg.bowlingStyle,
+          isOverseas: false,
+          country: "Sri Lanka",
+          age: reg.age,
+          category,
+          basePrice: Number(basePrice),
+          status: 'QUEUED',
+          stats: {
+            matches: reg.matches || 0,
+            runs: reg.runs || 0,
+            wickets: reg.wickets || 0
+          }
+        };
+        setPlayers(prev => [...prev, fallbackPlayer]);
+        setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
+      }
+      return { success: false, error: err.message };
+    }
+  }, [registrations, players.length, auctionDbId]);
 
   // Action: Reject Registration
-  const rejectRegistration = useCallback((regId) => {
-    setRegistrations(prev => prev.filter(r => r.id !== regId));
+  const rejectRegistration = useCallback(async (regId, reason = 'Application rejected by committee.') => {
+    try {
+      await api.reviewRegistration(regId, {
+        status: 'REJECTED',
+        rejectionReason: reason
+      });
+    } catch (err) {
+      console.warn('[BidX Context] Reject registration API failed:', err.message);
+    }
+    setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
   }, []);
+
+  // Action: Create Player directly into Auction Roster
+  const createPlayer = useCallback(async (playerData) => {
+    try {
+      const res = await api.createPlayer({
+        ...playerData,
+        auctionId: auctionDbId
+      });
+      if (res?.success && res.data) {
+        const newP = {
+          ...res.data,
+          id: res.data._id
+        };
+        setPlayers(prev => [...prev, newP]);
+        return { success: true, player: newP };
+      }
+    } catch (err) {
+      console.warn('[BidX Context] Create player API failed, falling back to local state:', err.message);
+      const fallbackP = {
+        ...playerData,
+        id: `ply-${Date.now()}`,
+        lotNumber: players.length + 1,
+        status: 'QUEUED'
+      };
+      setPlayers(prev => [...prev, fallbackP]);
+      return { success: true, player: fallbackP };
+    }
+  }, [auctionDbId, players.length]);
 
   // Action: Add Tournament
   const createTournament = useCallback((data) => {
@@ -453,8 +555,11 @@ export const AuctionProvider = ({ children }) => {
       teams,
       createTeam,
       players,
+      createPlayer,
       importPlayers,
       registrations,
+      fetchRegistrations,
+      registerPlayer,
       approveRegistration,
       rejectRegistration,
       activeLot,

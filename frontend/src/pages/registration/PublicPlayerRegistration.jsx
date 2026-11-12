@@ -20,7 +20,7 @@ import { Badge } from '../../components/ui/Badge';
 
 export const PublicPlayerRegistration = () => {
   const { slug } = useParams();
-  const { activeTournament } = useAuction();
+  const { activeTournament, registerPlayer } = useAuction();
 
   // Form State
   const [formData, setFormData] = useState({
@@ -43,6 +43,7 @@ export const PublicPlayerRegistration = () => {
 
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState(null);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -59,13 +60,41 @@ export const PublicPlayerRegistration = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setErrorMessage(null);
+
+    try {
+      const targetSlug = slug || activeTournament?.slug || 'cpl-2026';
+      const payload = {
+        fullName: formData.fullName.trim(),
+        contactNumber: formData.contactNumber.trim(),
+        email: formData.email.trim(),
+        age: Number(formData.age) || 22,
+        city: formData.city,
+        role: formData.role,
+        battingStyle: formData.battingStyle,
+        bowlingStyle: formData.bowlingStyle,
+        experienceLevel: formData.experienceLevel,
+        photoUrl: formData.photoPreview || '',
+        stats: {
+          matches: Number(formData.matches) || 0,
+          runs: Number(formData.runs) || 0,
+          wickets: Number(formData.wickets) || 0,
+          highestScore: formData.highestScore || '0',
+          bestBowling: formData.bestBowling || '-'
+        }
+      };
+
+      await registerPlayer(payload, targetSlug);
       setIsSubmitted(true);
-    }, 800);
+    } catch (err) {
+      console.error('[Registration Form] Error:', err);
+      setErrorMessage(err.message || 'Could not submit registration. Please verify your details.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSubmitted) {
@@ -129,6 +158,13 @@ export const PublicPlayerRegistration = () => {
 
         {/* Registration Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
+          {errorMessage && (
+            <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 flex items-center gap-3 text-red-400 text-xs font-semibold animate-pulse">
+              <AlertCircle className="w-5 h-5 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           {/* SECTION 1: PERSONAL INFORMATION */}
           <Card className="p-6 space-y-4">
             <h3 className="text-base font-bold text-white border-b border-border-subtle pb-2 flex items-center gap-2">

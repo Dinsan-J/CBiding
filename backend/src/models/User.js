@@ -69,15 +69,20 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 
 // Generate JWT Token
 userSchema.methods.getSignedJwtToken = function () {
+  let expiresIn = process.env.JWT_EXPIRES_IN;
+  if (!expiresIn || expiresIn === '0' || expiresIn === 0 || expiresIn === '0s') {
+    expiresIn = '7d';
+  }
+  const tenantIdStr = this.tenantId?._id ? this.tenantId._id.toString() : (this.tenantId ? this.tenantId.toString() : null);
   return jwt.sign(
     { 
-      id: this._id, 
-      tenantId: this.tenantId, 
+      id: this._id.toString(), 
+      tenantId: tenantIdStr, 
       role: this.role, 
       email: this.email 
     },
     process.env.JWT_SECRET || 'bidx_cricket_auction_ultra_secret_key_2026',
-    { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    { expiresIn }
   );
 };
 

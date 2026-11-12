@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Player = require('../models/Player');
 const PlayerRegistration = require('../models/PlayerRegistration');
 const Auction = require('../models/Auction');
@@ -11,7 +12,15 @@ exports.getPlayersByAuction = async (req, res, next) => {
     const { auctionId } = req.params;
     const { status, role, category, search } = req.query;
 
-    let query = { auctionId };
+    let targetAuctionId = auctionId;
+    if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+      const foundAuction = await Auction.findOne({ slug: auctionId });
+      if (foundAuction) {
+        targetAuctionId = foundAuction._id;
+      }
+    }
+
+    let query = { auctionId: targetAuctionId };
 
     if (status && status !== 'ALL') {
       if (status === 'QUEUED') {
@@ -55,16 +64,26 @@ exports.createPlayer = async (req, res, next) => {
   try {
     const { auctionId, fullName, role, battingStyle, bowlingStyle, basePrice, category, lotNumber, stats, photoUrl, isOverseas, country, age } = req.body;
 
-    const auction = await Auction.findById(auctionId);
+    let auction = null;
+    if (auctionId && mongoose.Types.ObjectId.isValid(auctionId)) {
+      auction = await Auction.findById(auctionId);
+    }
+    if (!auction && auctionId) {
+      auction = await Auction.findOne({ slug: auctionId });
+    }
+    if (!auction) {
+      auction = await Auction.findOne();
+    }
+
     if (!auction) {
       return res.status(404).json({ success: false, error: 'Auction not found' });
     }
 
-    const count = await Player.countDocuments({ auctionId });
+    const count = await Player.countDocuments({ auctionId: auction._id });
 
     const player = await Player.create({
       tenantId: auction.tenantId,
-      auctionId,
+      auctionId: auction._id,
       lotNumber: lotNumber || count + 1,
       fullName,
       photoUrl: photoUrl || '',
@@ -75,7 +94,7 @@ exports.createPlayer = async (req, res, next) => {
       country: country || 'Sri Lanka',
       age: age || 25,
       category: category || 'CATEGORY_A',
-      basePrice: basePrice || auction.minBasePrice,
+      basePrice: basePrice || auction.minBasePrice || 1000000,
       stats: stats || {},
       status: 'QUEUED'
     });
@@ -95,7 +114,16 @@ exports.createPlayer = async (req, res, next) => {
 exports.publicSelfRegister = async (req, res, next) => {
   try {
     const { slug } = req.params;
-    const auction = await Auction.findOne({ slug });
+    let auction = null;
+    if (mongoose.Types.ObjectId.isValid(slug)) {
+      auction = await Auction.findById(slug);
+    }
+    if (!auction) {
+      auction = await Auction.findOne({ slug });
+    }
+    if (!auction) {
+      auction = await Auction.findOne(); // default fallback
+    }
 
     if (!auction) {
       return res.status(404).json({ success: false, error: 'Tournament registration link invalid or expired.' });
@@ -149,7 +177,20 @@ exports.publicSelfRegister = async (req, res, next) => {
 exports.getRegistrations = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
-    const registrations = await PlayerRegistration.find({ auctionId })
+    let query = {};
+
+    if (auctionId && auctionId !== 'all') {
+      if (mongoose.Types.ObjectId.isValid(auctionId)) {
+        query.auctionId = auctionId;
+      } else {
+        const auction = await Auction.findOne({ slug: auctionId });
+        if (auction) {
+          query.auctionId = auction._id;
+        }
+      }
+    }
+
+    const registrations = await PlayerRegistration.find(query)
       .sort({ createdAt: -1 });
 
     res.status(200).json({
