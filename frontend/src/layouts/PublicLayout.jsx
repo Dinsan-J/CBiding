@@ -18,7 +18,6 @@ export const PublicLayout = ({ children, tournament }) => {
     { label: 'All Players', path: `/live/${currentSlug}/players`, icon: Search },
     { label: 'Teams & Squads', path: `/live/${currentSlug}/teams`, icon: Shield },
     { label: 'Auction Stats', path: `/live/${currentSlug}/stats`, icon: BarChart3 },
-    { label: 'Registration', path: `/register/${currentSlug}`, icon: UserPlus, isSpecial: true },
   ];
 
   return (
@@ -61,9 +60,7 @@ export const PublicLayout = ({ children, tournament }) => {
                     'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors',
                     isActive 
                       ? 'bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/30' 
-                      : item.isSpecial
-                        ? 'bg-surface-accent text-brand-emerald hover:text-white border border-emerald-500/30'
-                        : 'text-slate-300 hover:text-white hover:bg-surface-accent'
+                      : 'text-slate-300 hover:text-white hover:bg-surface-accent'
                   )}
                 >
                   <item.icon className="w-4 h-4" />
@@ -72,21 +69,21 @@ export const PublicLayout = ({ children, tournament }) => {
               ))}
             </nav>
 
-            {/* Header Right Actions (Visible on Mobile & Desktop) */}
+            {/* Header Right Actions (Single CTA Button) */}
             <div className="flex items-center gap-2 shrink-0">
               <Link
                 to={`/register/${currentSlug}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span className="hidden xs:inline sm:inline">Register Player</span>
-                <span className="xs:hidden sm:hidden">Register</span>
+                <span className="hidden sm:inline">Register Player</span>
+                <span className="sm:hidden">Register</span>
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Mobile Horizontal Subnav - Scrollable with all links including Registration */}
+        {/* Mobile Horizontal Subnav - Scrollable with 4 Core Sections */}
         <div className="md:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
           {navLinks.map((item) => (
             <NavLink
@@ -97,9 +94,7 @@ export const PublicLayout = ({ children, tournament }) => {
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors shrink-0',
                 isActive 
                   ? 'bg-brand-cyan text-slate-950 font-bold shadow-glow-cyan' 
-                  : item.isSpecial
-                    ? 'text-brand-emerald bg-surface-card border border-emerald-500/30 font-bold'
-                    : 'text-slate-400 hover:text-slate-200 bg-surface-card border border-border-subtle'
+                  : 'text-slate-400 hover:text-slate-200 bg-surface-card border border-border-subtle'
               )}
             >
               <item.icon className="w-3.5 h-3.5" />
