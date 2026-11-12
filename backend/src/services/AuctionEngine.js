@@ -160,6 +160,75 @@ class AuctionEngine {
   }
 
   /**
+   * Helper: Automatically find and set the next random available player onto the live lot
+   */
+  static async advanceToNextRandomLot(auctionId, excludePlayerId = null) {
+    const auction = await Auction.findById(auctionId);
+    if (!auction) return null;
+
+    // Find all un-auctioned/available players for this auction
+    const query = {
+      auctionId: auction._id,
+      status: { $in: ['QUEUED', 'APPROVED', 'LIVE'] },
+      isFixedPlayer: { $ne: true },
+      winningTeamId: null
+    };
+
+    if (excludePlayerId) {
+      query._id = { $ne: excludePlayerId };
+    }
+
+    let availablePlayers = await Player.find(query);
+    if (availablePlayers.length === 0 && excludePlayerId) {
+      delete query._id;
+      availablePlayers = await Player.find(query);
+    }
+
+    if (availablePlayers.length > 0) {
+      // Pick randomly as requested by user
+      const randomIndex = Math.floor(Math.random() * availablePlayers.length);
+      const nextPlayer = availablePlayers[randomIndex];
+
+      // Mark next player as LIVE
+      nextPlayer.status = 'LIVE';
+      await nextPlayer.save();
+
+      // Reset any other players that were accidentally left in LIVE status back to QUEUED
+      await Player.updateMany(
+        { auctionId: auction._id, _id: { $ne: nextPlayer._id }, status: 'LIVE', winningTeamId: null },
+        { $set: { status: 'QUEUED' } }
+      );
+
+      auction.currentLot = {
+        playerId: nextPlayer._id,
+        lotNumber: nextPlayer.lotNumber || 1,
+        currentBid: nextPlayer.basePrice || 0,
+        highestBidderTeamId: null,
+        bidCount: 0,
+        timerExpiresAt: null,
+        isTimerRunning: false
+      };
+      await auction.save();
+
+      return nextPlayer;
+    } else {
+      // No remaining available players in the queue
+      auction.currentLot = {
+        playerId: null,
+        lotNumber: 0,
+        currentBid: 0,
+        highestBidderTeamId: null,
+        bidCount: 0,
+        timerExpiresAt: null,
+        isTimerRunning: false
+      };
+      await auction.save();
+
+      return null;
+    }
+  }
+
+  /**
    * Finalize Lot: Hammer SOLD
    */
   static async hammerSold({ auctionId, userId }) {
@@ -169,12 +238,24 @@ class AuctionEngine {
     }
 
     const { playerId, currentBid, highestBidderTeamId } = auction.currentLot;
-    if (!playerId || !highestBidderTeamId || currentBid <= 0) {
-      throw new Error('No winning bid present to hammer SOLD.');
+    if (!playerId) {
+      throw new Error('No active player on stage to hammer SOLD.');
     }
 
     const player = await Player.findById(playerId);
-    const team = await Team.findById(highestBidderTeamId);
+    if (!player) {
+      throw new Error('Player not found.');
+    }
+
+    let team = null;
+    if (highestBidderTeamId) {
+      team = await Team.findById(highestBidderTeamId);
+    }
+
+    // If no team placed a bid or current bid is 0, hammer as UNSOLD instead of getting stuck
+    if (!team || !highestBidderTeamId || currentBid <= 0) {
+      return await this.hammerUnsold({ auctionId, userId });
+    }
 
     // 1. Update Player
     player.status = 'SOLD';
@@ -205,19 +286,7 @@ class AuctionEngine {
       totalBidsOnLot: auction.currentLot.bidCount
     });
 
-    // 4. Reset Auction Current Lot
-    auction.currentLot = {
-      playerId: null,
-      lotNumber: 0,
-      currentBid: 0,
-      highestBidderTeamId: null,
-      bidCount: 0,
-      timerExpiresAt: null,
-      isTimerRunning: false
-    };
-    await auction.save();
-
-    // 5. Trigger Transactional WhatsApp Alert (non-blocking)
+    // 4. Trigger Transactional WhatsApp Alert (non-blocking)
     WhatsAppNotificationService.sendAcquisitionAlert({
       player,
       team,
@@ -225,7 +294,7 @@ class AuctionEngine {
       auction
     }).catch(err => console.error('[AuctionEngine] WhatsApp notification non-blocking error:', err.message));
 
-    // 6. Immutably record in AuditLog
+    // 5. Immutably record in AuditLog
     await AuditLog.create({
       tenantId: auction.tenantId,
       actorUserId: userId,
@@ -241,11 +310,16 @@ class AuctionEngine {
       }
     });
 
+    // 6. IMMEDIATELY ADVANCE TO NEXT RANDOM AVAILABLE LOT
+    const nextPlayer = await this.advanceToNextRandomLot(auction._id, player._id);
+    const updatedAuction = await Auction.findById(auction._id);
+
     return {
-      auction,
+      auction: updatedAuction,
       player,
       team,
-      acquisition
+      acquisition,
+      nextPlayer
     };
   }
 
@@ -304,34 +378,35 @@ class AuctionEngine {
     if (!auction) throw new Error('Auction not found.');
 
     const { playerId } = auction.currentLot;
-    if (!playerId) throw new Error('No active lot to mark unsold.');
+    let player = null;
 
-    const player = await Player.findById(playerId);
-    player.status = 'UNSOLD';
-    player.reAuctionEligible = true;
-    await player.save();
+    if (playerId) {
+      player = await Player.findById(playerId);
+      if (player) {
+        player.status = 'UNSOLD';
+        player.reAuctionEligible = true;
+        await player.save();
 
-    auction.currentLot = {
-      playerId: null,
-      lotNumber: 0,
-      currentBid: 0,
-      highestBidderTeamId: null,
-      bidCount: 0,
-      timerExpiresAt: null,
-      isTimerRunning: false
+        await AuditLog.create({
+          tenantId: auction.tenantId,
+          actorUserId: userId,
+          action: 'LOT_HAMMER_UNSOLD',
+          entityType: 'Player',
+          entityId: player._id,
+          snapshotAfter: { status: 'UNSOLD' }
+        });
+      }
+    }
+
+    // IMMEDIATELY ADVANCE TO NEXT RANDOM AVAILABLE LOT
+    const nextPlayer = await this.advanceToNextRandomLot(auction._id, player ? player._id : null);
+    const updatedAuction = await Auction.findById(auction._id);
+
+    return {
+      auction: updatedAuction,
+      player,
+      nextPlayer
     };
-    await auction.save();
-
-    await AuditLog.create({
-      tenantId: auction.tenantId,
-      actorUserId: userId,
-      action: 'LOT_HAMMER_UNSOLD',
-      entityType: 'Player',
-      entityId: player._id,
-      snapshotAfter: { status: 'UNSOLD' }
-    });
-
-    return { auction, player };
   }
 
   /**
@@ -347,10 +422,16 @@ class AuctionEngine {
     player.status = 'LIVE';
     await player.save();
 
+    // Reset any other players that were accidentally left in LIVE status back to QUEUED
+    await Player.updateMany(
+      { auctionId: auction._id, _id: { $ne: player._id }, status: 'LIVE', winningTeamId: null },
+      { $set: { status: 'QUEUED' } }
+    );
+
     auction.currentLot = {
       playerId: player._id,
       lotNumber: player.lotNumber || 1,
-      currentBid: 0,
+      currentBid: player.basePrice || 0,
       highestBidderTeamId: null,
       bidCount: 0,
       timerExpiresAt: null,

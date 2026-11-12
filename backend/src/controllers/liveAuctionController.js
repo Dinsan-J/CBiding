@@ -106,8 +106,16 @@ exports.hammerSold = async (req, res, next) => {
         player: result.player,
         team: result.team,
         acquisition: result.acquisition,
-        auction: result.auction
+        auction: result.auction,
+        nextPlayer: result.nextPlayer
       });
+
+      if (result.nextPlayer) {
+        io.to(`auction_${auction._id}`).emit('lot_selected', {
+          player: result.nextPlayer,
+          auction: result.auction
+        });
+      }
     }
 
     res.status(200).json({
@@ -140,8 +148,16 @@ exports.hammerUnsold = async (req, res, next) => {
       const io = req.app.get('io');
       io.to(`auction_${auction._id}`).emit('lot_unsold', {
         player: result.player,
-        auction: result.auction
+        auction: result.auction,
+        nextPlayer: result.nextPlayer
       });
+
+      if (result.nextPlayer) {
+        io.to(`auction_${auction._id}`).emit('lot_selected', {
+          player: result.nextPlayer,
+          auction: result.auction
+        });
+      }
     }
 
     res.status(200).json({
@@ -194,16 +210,37 @@ exports.getLiveAuctionState = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
 
-    const auction = await resolveAuction(auctionId);
+    let auction = await resolveAuction(auctionId);
     if (!auction) {
       return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
+    // Auto-advance if currently on stage player is already SOLD or empty
+    if (auction.status === 'LIVE') {
+      const currentLotPlayerId = auction.currentLot?.playerId;
+      let needsAdvance = !currentLotPlayerId;
+      if (currentLotPlayerId) {
+        const checkPlayer = await Player.findById(currentLotPlayerId);
+        if (!checkPlayer || checkPlayer.status === 'SOLD' || checkPlayer.status === 'RETAINED') {
+          needsAdvance = true;
+        }
+      }
+      if (needsAdvance) {
+        await AuctionEngine.advanceToNextRandomLot(auction._id);
+        auction = await resolveAuction(auctionId);
+      }
     }
 
     await auction.populate('currentLot.playerId');
     await auction.populate('currentLot.highestBidderTeamId');
 
     const teams = await Team.find({ auctionId: auction._id });
-    const queuedPlayers = await Player.find({ auctionId: auction._id, status: { $in: ['QUEUED', 'LIVE'] } }).sort({ lotNumber: 1 });
+    const queuedPlayers = await Player.find({ 
+      auctionId: auction._id, 
+      status: { $in: ['QUEUED', 'APPROVED', 'LIVE'] },
+      isFixedPlayer: { $ne: true },
+      winningTeamId: null
+    }).sort({ lotNumber: 1 });
     const unsoldPlayers = await Player.find({ auctionId: auction._id, status: 'UNSOLD' }).sort({ lotNumber: 1 });
     const soldPlayers = await Player.find({ auctionId: auction._id, status: 'SOLD' })
       .populate('winningTeamId', 'name shortName logoUrl primaryColor')
@@ -224,6 +261,40 @@ exports.getLiveAuctionState = async (req, res, next) => {
         unsoldPlayers,
         soldPlayers,
         recentBids
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Select a random available player onto the live lot
+// @route   POST /api/live/:auctionId/random-lot
+// @access  Private (Auctioneer / Organiser)
+exports.selectRandomLot = async (req, res, next) => {
+  try {
+    const { auctionId } = req.params;
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
+    const nextPlayer = await AuctionEngine.advanceToNextRandomLot(auction._id, auction.currentLot?.playerId);
+    const updatedAuction = await Auction.findById(auction._id);
+
+    if (req.app.get('io') && nextPlayer) {
+      const io = req.app.get('io');
+      io.to(`auction_${auction._id}`).emit('lot_selected', {
+        auction: updatedAuction,
+        player: nextPlayer
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        auction: updatedAuction,
+        player: nextPlayer
       }
     });
   } catch (error) {

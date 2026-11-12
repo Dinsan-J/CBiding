@@ -23,19 +23,27 @@ export const AuctionProvider = ({ children }) => {
 
   // Active Live Lot Engine State
   const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
-  const livePlayer = players.find(p => p.status === 'LIVE') || players.find(p => p.status === 'QUEUED') || players[0];
+
+  // Available un-auctioned players
+  const availablePlayers = players.filter(p => 
+    p.status !== 'SOLD' && 
+    p.status !== 'RETAINED' && 
+    !p.winningTeamId && 
+    !p.isFixedPlayer
+  );
+
+  const initialLivePlayer = players.find(p => p.status === 'LIVE' && p.status !== 'SOLD' && !p.winningTeamId) 
+    || availablePlayers[0] 
+    || null;
 
   const [activeLot, setActiveLot] = useState({
-    playerId: livePlayer?.id,
-    currentBid: livePlayer?.basePrice || 3500000,
-    highestBidderTeamId: "team-cls",
-    bidCount: 2,
-    timerSeconds: 15,
-    isTimerRunning: true,
-    bidHistory: [
-      { id: 1, teamId: "team-kfl", amount: 3500000, timestamp: "11:24:02" },
-      { id: 2, teamId: "team-cls", amount: 3750000, timestamp: "11:24:18" }
-    ]
+    playerId: initialLivePlayer?.id || initialLivePlayer?._id || null,
+    currentBid: initialLivePlayer?.basePrice || 0,
+    highestBidderTeamId: null,
+    bidCount: 0,
+    timerSeconds: 30,
+    isTimerRunning: false,
+    bidHistory: []
   });
 
   // Sold Celebration Trigger State
@@ -46,9 +54,12 @@ export const AuctionProvider = ({ children }) => {
     finalBid: 0
   });
 
-  // Active Lot Player Object
-  const currentLotPlayer = players.find(p => p.id === activeLot.playerId) || livePlayer;
-  const currentHighestTeam = teams.find(t => t.id === activeLot.highestBidderTeamId);
+  // Active Lot Player Object - strictly resolve active lot or live player, NEVER a sold or retained player
+  const currentLotPlayer = activeLot.playerId
+    ? (players.find(p => (p.id === activeLot.playerId || p._id === activeLot.playerId) && p.status !== 'SOLD' && p.status !== 'RETAINED' && !p.winningTeamId) || null)
+    : (players.find(p => p.status === 'LIVE' && p.status !== 'SOLD' && !p.winningTeamId) || availablePlayers[0] || null);
+
+  const currentHighestTeam = teams.find(t => t.id === activeLot.highestBidderTeamId || t._id === activeLot.highestBidderTeamId);
 
   // Timer Tick Engine
   useEffect(() => {
@@ -113,14 +124,28 @@ export const AuctionProvider = ({ children }) => {
             })));
           }
           if (auction?.currentLot?.playerId) {
-            setActiveLot(prev => ({
-              ...prev,
-              playerId: auction.currentLot.playerId._id || auction.currentLot.playerId,
-              currentBid: auction.currentLot.currentBid,
-              highestBidderTeamId: auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId,
-              bidCount: auction.currentLot.bidCount,
-              isTimerRunning: auction.currentLot.isTimerRunning
-            }));
+            const curPId = auction.currentLot.playerId._id || auction.currentLot.playerId;
+            const pObj = livePlayers?.find(p => p._id === curPId || p.id === curPId);
+            if (pObj && (pObj.status === 'SOLD' || pObj.status === 'RETAINED' || pObj.winningTeamId)) {
+              setActiveLot(prev => ({
+                ...prev,
+                playerId: null,
+                currentBid: 0,
+                highestBidderTeamId: null,
+                bidCount: 0,
+                isTimerRunning: false,
+                bidHistory: []
+              }));
+            } else {
+              setActiveLot(prev => ({
+                ...prev,
+                playerId: curPId,
+                currentBid: auction.currentLot.currentBid || 0,
+                highestBidderTeamId: auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId || null,
+                bidCount: auction.currentLot.bidCount || 0,
+                isTimerRunning: auction.currentLot.isTimerRunning || false
+              }));
+            }
           }
 
           // Also fetch backend registrations
@@ -164,10 +189,10 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 2. Lot Hammer SOLD
-    socket.on('lot_sold', ({ player, team, acquisition }) => {
+    socket.on('lot_sold', ({ player, team, acquisition, nextPlayer }) => {
       const winningPrice = acquisition?.finalBidAmount || activeLot.currentBid;
-      const teamId = team._id || team.id;
-      const playerId = player._id || player.id;
+      const teamId = team?._id || team?.id;
+      const playerId = player?._id || player?.id;
 
       setSoldEvent({
         isOpen: true,
@@ -182,28 +207,89 @@ export const AuctionProvider = ({ children }) => {
           : p
       ));
 
-      setTeams(prev => prev.map(t => 
-        (t.id === teamId || t._id === teamId)
-          ? {
-              ...t,
-              remainingPurse: t.remainingPurse - winningPrice,
-              totalSpent: t.totalSpent + winningPrice,
-              squadCount: t.squadCount + 1
-            }
-          : t
-      ));
+      if (teamId) {
+        setTeams(prev => prev.map(t => 
+          (t.id === teamId || t._id === teamId)
+            ? {
+                ...t,
+                remainingPurse: t.remainingPurse - winningPrice,
+                totalSpent: t.totalSpent + winningPrice,
+                squadCount: t.squadCount + 1
+              }
+            : t
+        ));
+      }
+
+      if (nextPlayer) {
+        const nextId = nextPlayer._id || nextPlayer.id;
+        setActiveLot({
+          playerId: nextId,
+          currentBid: nextPlayer.basePrice || 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          timerSeconds: 30,
+          isTimerRunning: false,
+          bidHistory: []
+        });
+        setPlayers(prev => prev.map(p => 
+          (p.id === nextId || p._id === nextId)
+            ? { ...p, status: 'LIVE' }
+            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+        ));
+      } else {
+        setActiveLot(prev => ({
+          ...prev,
+          playerId: null,
+          currentBid: 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          isTimerRunning: false,
+          bidHistory: []
+        }));
+      }
     });
 
     // 3. Lot Hammer UNSOLD
-    socket.on('lot_unsold', ({ player }) => {
-      const playerId = player._id || player.id;
-      setPlayers(prev => prev.map(p => 
-        (p.id === playerId || p._id === playerId) ? { ...p, status: 'UNSOLD' } : p
-      ));
+    socket.on('lot_unsold', ({ player, nextPlayer }) => {
+      const playerId = player?._id || player?.id;
+      if (playerId) {
+        setPlayers(prev => prev.map(p => 
+          (p.id === playerId || p._id === playerId) ? { ...p, status: 'UNSOLD' } : p
+        ));
+      }
+
+      if (nextPlayer) {
+        const nextId = nextPlayer._id || nextPlayer.id;
+        setActiveLot({
+          playerId: nextId,
+          currentBid: nextPlayer.basePrice || 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          timerSeconds: 30,
+          isTimerRunning: false,
+          bidHistory: []
+        });
+        setPlayers(prev => prev.map(p => 
+          (p.id === nextId || p._id === nextId)
+            ? { ...p, status: 'LIVE' }
+            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+        ));
+      } else {
+        setActiveLot(prev => ({
+          ...prev,
+          playerId: null,
+          currentBid: 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          isTimerRunning: false,
+          bidHistory: []
+        }));
+      }
     });
 
     // 4. Next Lot Selected
     socket.on('lot_selected', ({ player }) => {
+      if (!player) return;
       const playerId = player._id || player.id;
       setActiveLot({
         playerId,
@@ -217,7 +303,7 @@ export const AuctionProvider = ({ children }) => {
       setPlayers(prev => prev.map(p => 
         (p.id === playerId || p._id === playerId)
           ? { ...p, status: 'LIVE' }
-          : (p.status === 'LIVE' ? { ...p, status: 'QUEUED' } : p)
+          : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
       ));
     });
 
@@ -309,7 +395,12 @@ export const AuctionProvider = ({ children }) => {
 
   // Action: Hammer SOLD (Authoritative Backend Execution)
   const hammerSold = useCallback(async () => {
-    if (!currentLotPlayer || !currentHighestTeam) return;
+    if (!currentLotPlayer) return;
+
+    if (!currentHighestTeam || !activeLot.highestBidderTeamId || activeLot.currentBid <= 0) {
+      // If no bids placed, hammer as UNSOLD instead of failing
+      return await hammerUnsold();
+    }
 
     try {
       const res = await api.hammerSold(auctionDbId);
@@ -344,53 +435,135 @@ export const AuctionProvider = ({ children }) => {
         finalBid: winningPrice
       });
 
-      // Advance to next queued player if available
-      const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id && p._id !== currentLotPlayer.id);
-      if (nextQueued) {
-        setPlayers(prev => prev.map(p => (p.id === nextQueued.id || p._id === nextQueued.id) ? { ...p, status: 'LIVE' } : p));
+      // IMMEDIATELY ADVANCE TO NEXT RANDOM AVAILABLE LOT
+      const nextPlayer = res?.data?.nextPlayer;
+      if (nextPlayer) {
+        const nextId = nextPlayer._id || nextPlayer.id;
+        setPlayers(prev => prev.map(p => 
+          (p.id === nextId || p._id === nextId) 
+            ? { ...p, status: 'LIVE' } 
+            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+        ));
         setActiveLot({
-          playerId: nextQueued.id || nextQueued._id,
-          currentBid: nextQueued.basePrice || 0,
+          playerId: nextId,
+          currentBid: nextPlayer.basePrice || 0,
           highestBidderTeamId: null,
           bidCount: 0,
           timerSeconds: activeTournament.timerSeconds || 30,
-          isTimerRunning: true,
+          isTimerRunning: false,
           bidHistory: []
         });
       } else {
-        setActiveLot(prev => ({ ...prev, isTimerRunning: false, currentBid: 0, highestBidderTeamId: null }));
+        const remaining = players.filter(p => 
+          p.status !== 'SOLD' && 
+          p.status !== 'RETAINED' && 
+          !p.winningTeamId && 
+          !p.isFixedPlayer && 
+          p.id !== currentLotPlayer.id && 
+          p._id !== currentLotPlayer.id
+        );
+        if (remaining.length > 0) {
+          const randomIndex = Math.floor(Math.random() * remaining.length);
+          const nextRnd = remaining[randomIndex];
+          const nextId = nextRnd._id || nextRnd.id;
+          setPlayers(prev => prev.map(p => 
+            (p.id === nextId || p._id === nextId) 
+              ? { ...p, status: 'LIVE' } 
+              : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+          ));
+          setActiveLot({
+            playerId: nextId,
+            currentBid: nextRnd.basePrice || 0,
+            highestBidderTeamId: null,
+            bidCount: 0,
+            timerSeconds: activeTournament.timerSeconds || 30,
+            isTimerRunning: false,
+            bidHistory: []
+          });
+        } else {
+          setActiveLot(prev => ({
+            ...prev,
+            playerId: null,
+            isTimerRunning: false,
+            currentBid: 0,
+            highestBidderTeamId: null,
+            bidCount: 0,
+            bidHistory: []
+          }));
+        }
       }
     } catch (err) {
       console.error('[BidX Engine] Failed to hammer sold:', err.message);
       alert(`Hammer Sold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, players, auctionDbId, activeTournament.timerSeconds]);
+  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, activeLot.highestBidderTeamId, players, auctionDbId, activeTournament.timerSeconds]);
 
   // Action: Hammer UNSOLD (Authoritative Backend Execution)
   const hammerUnsold = useCallback(async () => {
     if (!currentLotPlayer) return;
 
     try {
-      await api.hammerUnsold(auctionDbId);
+      const res = await api.hammerUnsold(auctionDbId);
       setPlayers(prev => prev.map(p => 
         (p.id === currentLotPlayer.id || p._id === currentLotPlayer.id) ? { ...p, status: 'UNSOLD' } : p
       ));
 
-      // Advance queue
-      const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id && p._id !== currentLotPlayer.id);
-      if (nextQueued) {
-        setPlayers(prev => prev.map(p => (p.id === nextQueued.id || p._id === nextQueued.id) ? { ...p, status: 'LIVE' } : p));
+      // IMMEDIATELY ADVANCE TO NEXT RANDOM AVAILABLE LOT
+      const nextPlayer = res?.data?.nextPlayer;
+      if (nextPlayer) {
+        const nextId = nextPlayer._id || nextPlayer.id;
+        setPlayers(prev => prev.map(p => 
+          (p.id === nextId || p._id === nextId) 
+            ? { ...p, status: 'LIVE' } 
+            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+        ));
         setActiveLot({
-          playerId: nextQueued.id || nextQueued._id,
-          currentBid: nextQueued.basePrice || 0,
+          playerId: nextId,
+          currentBid: nextPlayer.basePrice || 0,
           highestBidderTeamId: null,
           bidCount: 0,
           timerSeconds: activeTournament.timerSeconds || 30,
-          isTimerRunning: true,
+          isTimerRunning: false,
           bidHistory: []
         });
       } else {
-        setActiveLot(prev => ({ ...prev, isTimerRunning: false, currentBid: 0, highestBidderTeamId: null }));
+        const remaining = players.filter(p => 
+          p.status !== 'SOLD' && 
+          p.status !== 'RETAINED' && 
+          !p.winningTeamId && 
+          !p.isFixedPlayer && 
+          p.id !== currentLotPlayer.id && 
+          p._id !== currentLotPlayer.id
+        );
+        if (remaining.length > 0) {
+          const randomIndex = Math.floor(Math.random() * remaining.length);
+          const nextRnd = remaining[randomIndex];
+          const nextId = nextRnd._id || nextRnd.id;
+          setPlayers(prev => prev.map(p => 
+            (p.id === nextId || p._id === nextId) 
+              ? { ...p, status: 'LIVE' } 
+              : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+          ));
+          setActiveLot({
+            playerId: nextId,
+            currentBid: nextRnd.basePrice || 0,
+            highestBidderTeamId: null,
+            bidCount: 0,
+            timerSeconds: activeTournament.timerSeconds || 30,
+            isTimerRunning: false,
+            bidHistory: []
+          });
+        } else {
+          setActiveLot(prev => ({
+            ...prev,
+            playerId: null,
+            isTimerRunning: false,
+            currentBid: 0,
+            highestBidderTeamId: null,
+            bidCount: 0,
+            bidHistory: []
+          }));
+        }
       }
     } catch (err) {
       console.error('[BidX Engine] Failed to hammer unsold:', err.message);
@@ -407,7 +580,9 @@ export const AuctionProvider = ({ children }) => {
       await api.selectLot(auctionDbId, targetPlayer._id || targetPlayer.id);
 
       setPlayers(prev => prev.map(p => 
-        (p.id === playerId || p._id === playerId) ? { ...p, status: 'LIVE' } : (p.status === 'LIVE' ? { ...p, status: 'QUEUED' } : p)
+        (p.id === playerId || p._id === playerId) 
+          ? { ...p, status: 'LIVE' } 
+          : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
       ));
 
       setActiveLot({
@@ -421,7 +596,6 @@ export const AuctionProvider = ({ children }) => {
       });
     } catch (err) {
       console.warn('[BidX Engine] Live select lot error:', err.message);
-      // Fallback local update
       setActiveLot({
         playerId: targetPlayer.id || targetPlayer._id,
         currentBid: targetPlayer.basePrice || 0,
@@ -433,6 +607,51 @@ export const AuctionProvider = ({ children }) => {
       });
     }
   }, [players, auctionDbId, activeTournament.timerSeconds]);
+
+  // Action: Select Next Random Lot onto live block
+  const selectRandomLot = useCallback(async () => {
+    try {
+      const res = await api.selectRandomLot(auctionDbId);
+      if (res?.success && res.data?.player) {
+        const nextPlayer = res.data.player;
+        const nextId = nextPlayer._id || nextPlayer.id;
+        setPlayers(prev => prev.map(p => 
+          (p.id === nextId || p._id === nextId) 
+            ? { ...p, status: 'LIVE' } 
+            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
+        ));
+        setActiveLot({
+          playerId: nextId,
+          currentBid: nextPlayer.basePrice || 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          timerSeconds: activeTournament.timerSeconds || 30,
+          isTimerRunning: false,
+          bidHistory: []
+        });
+        return { success: true, player: nextPlayer };
+      } else {
+        const remaining = players.filter(p => 
+          p.status !== 'SOLD' && 
+          p.status !== 'RETAINED' && 
+          !p.winningTeamId && 
+          !p.isFixedPlayer && 
+          p.id !== currentLotPlayer?.id && 
+          p._id !== currentLotPlayer?.id
+        );
+        if (remaining.length > 0) {
+          const randomIndex = Math.floor(Math.random() * remaining.length);
+          const nextRnd = remaining[randomIndex];
+          const nextId = nextRnd._id || nextRnd.id;
+          return await selectPlayerLot(nextId);
+        }
+        return { success: false, reason: "No more un-auctioned players available." };
+      }
+    } catch (err) {
+      console.error('[BidX Engine] Failed to select random lot:', err.message);
+      return { success: false, reason: err.message };
+    }
+  }, [auctionDbId, players, currentLotPlayer, selectPlayerLot, activeTournament.timerSeconds]);
 
   // Action: Undo Last Bid (Authoritative Backend Execution)
   const undoLastBid = useCallback(async () => {
@@ -816,6 +1035,7 @@ export const AuctionProvider = ({ children }) => {
       hammerSold,
       hammerUnsold,
       selectPlayerLot,
+      selectRandomLot,
       undoLastBid,
       reQueueUnsold,
       toggleTimer: () => setActiveLot(prev => ({ ...prev, isTimerRunning: !prev.isTimerRunning })),

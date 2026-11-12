@@ -80,6 +80,15 @@ export const PublicLiveTracker = () => {
       </div>
 
       {/* CENTERSTAGE: LIVE LOT CARD (Cricbuzz Hero Experience) */}
+      {!currentLotPlayer ? (
+        <div className="relative rounded-3xl bg-gradient-to-b from-surface-card via-slate-900 to-canvas border border-border-subtle p-8 text-center shadow-2xl">
+          <Clock className="w-16 h-16 text-brand-gold mx-auto mb-4 animate-pulse" />
+          <h2 className="text-2xl font-bold text-white">Awaiting Next Lot Draw</h2>
+          <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
+            The previous lot has concluded. The live auctioneer desk is preparing the next athlete for the auction stage.
+          </p>
+        </div>
+      ) : (
       <div className="relative rounded-3xl bg-gradient-to-b from-surface-card via-slate-900 to-canvas border border-brand-cyan/40 p-6 sm:p-8 shadow-[0_0_50px_-15px_rgba(6,182,212,0.25)] overflow-hidden">
         {/* Subtle Live Broadcast Header */}
         <div className="flex items-center justify-between border-b border-border-subtle pb-4 mb-6">
@@ -217,6 +226,7 @@ export const PublicLiveTracker = () => {
           </div>
         </div>
       </div>
+      )}
 
       {/* RECENT AUCTION MILESTONES / SOLD PLAYERS TICKER */}
       <div className="space-y-3">

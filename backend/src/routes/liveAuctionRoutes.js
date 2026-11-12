@@ -6,6 +6,7 @@ const {
   hammerSold,
   hammerUnsold,
   undoBid,
+  selectRandomLot,
   getLiveAuctionState
 } = require('../controllers/liveAuctionController');
 const { protect } = require('../middlewares/auth');
@@ -15,6 +16,7 @@ router.get('/:auctionId/state', getLiveAuctionState);
 
 // Protected operator actions
 router.post('/:auctionId/select-lot', protect, selectLot);
+router.post('/:auctionId/random-lot', protect, selectRandomLot);
 router.post('/:auctionId/bid', protect, placeBid);
 router.post('/:auctionId/sold', protect, hammerSold);
 router.post('/:auctionId/unsold', protect, hammerUnsold);

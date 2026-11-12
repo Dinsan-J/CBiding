@@ -40,6 +40,7 @@ export const LiveAuctionCockpit = () => {
     hammerSold,
     hammerUnsold,
     selectPlayerLot,
+    selectRandomLot,
     undoLastBid,
     reQueueUnsold,
     toggleTimer,
@@ -56,8 +57,17 @@ export const LiveAuctionCockpit = () => {
   // Dynamic Increment Options
   const incrementOptions = [10000, 25000, 50000, 100000, 250000];
 
-  // Next queued players
-  const queuedPlayers = players.filter(p => p.status === 'QUEUED' && p.id !== currentLotPlayer?.id);
+  // Next queued un-auctioned players
+  const queuedPlayers = players.filter(p => 
+    p.status !== 'SOLD' && 
+    p.status !== 'RETAINED' && 
+    !p.isFixedPlayer && 
+    !p.winningTeamId && 
+    p.id !== currentLotPlayer?.id && 
+    p._id !== currentLotPlayer?.id && 
+    p.id !== currentLotPlayer?._id && 
+    p._id !== currentLotPlayer?._id
+  );
   const unsoldPlayers = players.filter(p => p.status === 'UNSOLD');
 
   // Handle Team Tap to Bid
@@ -94,12 +104,22 @@ export const LiveAuctionCockpit = () => {
 
   if (!currentLotPlayer) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-8 text-center">
-        <Gavel className="w-16 h-16 text-slate-600 mb-4 animate-bounce" />
-        <h2 className="text-2xl font-bold text-white">No Player Currently on Live Block</h2>
+      <div className="h-full flex flex-col items-center justify-center p-8 text-center bg-canvas">
+        <Gavel className="w-16 h-16 text-brand-gold mb-4 animate-bounce" />
+        <h2 className="text-2xl font-bold text-white">All Lots Concluded / Floor Empty</h2>
         <p className="text-sm text-slate-400 mt-2 max-w-md">
-          All lots may have concluded or you can select a queued player from the roster to begin bidding.
+          There is currently no active player on stage. You can draw a random available player or pick one from the roster queue.
         </p>
+        <div className="mt-6 flex items-center gap-3">
+          <Button
+            variant="primary"
+            size="md"
+            leftIcon={RotateCcw}
+            onClick={() => selectRandomLot()}
+          >
+            Draw Next Random Player
+          </Button>
+        </div>
       </div>
     );
   }
@@ -389,6 +409,16 @@ export const LiveAuctionCockpit = () => {
         {/* GAVEL HAMMER CONTROLS BAR (RESPONSIVE) */}
         <div className="sticky bottom-0 bg-surface-card/95 backdrop-blur-md border border-border-subtle rounded-2xl p-3 sm:p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 mt-auto z-20">
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
+            <Button
+              variant="outline"
+              size="sm"
+              leftIcon={RotateCcw}
+              onClick={() => selectRandomLot()}
+              className="flex-1 sm:flex-initial"
+              title="Draw a random available player onto the stage"
+            >
+              Random Lot
+            </Button>
             <Button
               variant="outline"
               size="sm"

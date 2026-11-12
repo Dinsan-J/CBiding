@@ -139,6 +139,10 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ playerId })
     }),
+  selectRandomLot: (auctionId) => 
+    request(`/live/${auctionId}/random-lot`, {
+      method: 'POST'
+    }),
   placeBid: (auctionId, data) => 
     request(`/live/${auctionId}/bid`, {
       method: 'POST',
