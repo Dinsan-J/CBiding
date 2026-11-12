@@ -55,7 +55,7 @@ export const OrganiserOverview = () => {
               variant="outline"
               size="md"
               leftIcon={ExternalLink}
-              onClick={() => window.open(`/live/${activeTournament.slug}`, '_blank')}
+              onClick={() => window.open('/', '_blank')}
             >
               Public Broadcast
             </Button>
@@ -63,7 +63,7 @@ export const OrganiserOverview = () => {
               variant="success"
               size="lg"
               leftIcon={Gavel}
-              onClick={() => navigate('/auctioneer/live')}
+              onClick={() => navigate('/admin/live')}
               className="font-bold shadow-glow-emerald"
             >
               Launch Live Cockpit
@@ -98,7 +98,7 @@ export const OrganiserOverview = () => {
             <Trophy className="w-4 h-4 text-brand-gold" />
             Managed Tournaments
           </h3>
-          <Link to="/dashboard/tournaments" className="text-xs text-brand-cyan hover:underline font-semibold flex items-center gap-1">
+          <Link to="/admin/tournaments" className="text-xs text-brand-cyan hover:underline font-semibold flex items-center gap-1">
             View All Tournaments <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -145,7 +145,7 @@ export const OrganiserOverview = () => {
                       size="xs"
                       variant="primary"
                       leftIcon={Gavel}
-                      onClick={() => navigate('/auctioneer/live')}
+                      onClick={() => navigate('/admin/live')}
                     >
                       Operate Live
                     </Button>
@@ -166,7 +166,7 @@ export const OrganiserOverview = () => {
           </h3>
           <div className="grid grid-cols-2 gap-3">
             <Link
-              to="/dashboard/players?tab=import"
+              to="/admin/players?tab=import"
               className="p-4 rounded-xl bg-surface-accent hover:bg-surface-hover border border-border-subtle transition-colors flex flex-col justify-between"
             >
               <FileSpreadsheet className="w-6 h-6 text-brand-emerald mb-2" />
@@ -177,7 +177,7 @@ export const OrganiserOverview = () => {
             </Link>
 
             <Link
-              to="/dashboard/teams"
+              to="/admin/teams"
               className="p-4 rounded-xl bg-surface-accent hover:bg-surface-hover border border-border-subtle transition-colors flex flex-col justify-between"
             >
               <Shield className="w-6 h-6 text-brand-cyan mb-2" />
@@ -188,7 +188,7 @@ export const OrganiserOverview = () => {
             </Link>
 
             <Link
-              to="/dashboard/tournaments"
+              to="/admin/tournaments"
               className="p-4 rounded-xl bg-surface-accent hover:bg-surface-hover border border-border-subtle transition-colors flex flex-col justify-between"
             >
               <PlusCircle className="w-6 h-6 text-brand-gold mb-2" />
@@ -199,7 +199,7 @@ export const OrganiserOverview = () => {
             </Link>
 
             <Link
-              to="/dashboard/settings"
+              to="/admin/settings"
               className="p-4 rounded-xl bg-surface-accent hover:bg-surface-hover border border-border-subtle transition-colors flex flex-col justify-between"
             >
               <CheckCircle2 className="w-6 h-6 text-brand-purple mb-2" />
@@ -218,7 +218,7 @@ export const OrganiserOverview = () => {
               <Users className="w-4 h-4 text-brand-cyan" />
               Pending Registrations ({registrations.length})
             </h3>
-            <Link to="/dashboard/players?tab=approvals" className="text-xs text-brand-cyan hover:underline font-semibold">
+            <Link to="/admin/players?tab=approvals" className="text-xs text-brand-cyan hover:underline font-semibold">
               Review All
             </Link>
           </div>
@@ -241,7 +241,7 @@ export const OrganiserOverview = () => {
                     </span>
                   </div>
 
-                  <Link to="/dashboard/players?tab=approvals">
+                  <Link to="/admin/players?tab=approvals">
                     <Button size="xs" variant="primary">
                       Review & Approve
                     </Button>

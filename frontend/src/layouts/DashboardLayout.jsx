@@ -25,12 +25,12 @@ export const DashboardLayout = ({ children }) => {
   const location = useLocation();
 
   const navigation = [
-    { name: 'Overview', to: '/dashboard', icon: LayoutDashboard },
-    { name: 'Tournaments', to: '/dashboard/tournaments', icon: Trophy },
-    { name: 'Teams & Squads', to: '/dashboard/teams', icon: Shield },
-    { name: 'Player Roster', to: '/dashboard/players', icon: Users },
-    { name: 'Live Auction Cockpit', to: '/auctioneer/live', icon: Gavel, highlight: true },
-    { name: 'Settings', to: '/dashboard/settings', icon: Settings },
+    { name: 'Overview', to: '/admin', icon: LayoutDashboard },
+    { name: 'Tournaments', to: '/admin/tournaments', icon: Trophy },
+    { name: 'Teams & Squads', to: '/admin/teams', icon: Shield },
+    { name: 'Player Roster', to: '/admin/players', icon: Users },
+    { name: 'Live Auction Cockpit', to: '/admin/live', icon: Gavel, highlight: true },
+    { name: 'Settings', to: '/admin/settings', icon: Settings },
   ];
 
   const handleNavClick = () => {
@@ -47,7 +47,7 @@ export const DashboardLayout = ({ children }) => {
       >
         {/* Brand & Collapse Toggle */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
-          <Link to="/dashboard" className="flex items-center gap-3 overflow-hidden">
+          <Link to="/admin" className="flex items-center gap-3 overflow-hidden">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-lg shrink-0 shadow-glow-cyan">
               C
             </div>
@@ -82,7 +82,7 @@ export const DashboardLayout = ({ children }) => {
             <NavLink
               key={item.name}
               to={item.to}
-              end={item.to === '/dashboard'}
+              end={item.to === '/admin'}
               className={({ isActive }) => cn(
                 'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all group relative',
                 isActive
@@ -166,7 +166,7 @@ export const DashboardLayout = ({ children }) => {
                   <NavLink
                     key={item.name}
                     to={item.to}
-                    end={item.to === '/dashboard'}
+                    end={item.to === '/admin'}
                     onClick={handleNavClick}
                     className={({ isActive }) => cn(
                       'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all',
@@ -182,7 +182,7 @@ export const DashboardLayout = ({ children }) => {
 
                 <div className="pt-4 mt-4 border-t border-border-subtle space-y-2">
                   <Link
-                    to="/live/cpl-2026"
+                    to="/"
                     onClick={handleNavClick}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-cyan bg-brand-cyan/10 border border-brand-cyan/20"
                   >
@@ -191,7 +191,7 @@ export const DashboardLayout = ({ children }) => {
                   </Link>
 
                   <Link
-                    to="/register/cpl-2026"
+                    to="/register"
                     onClick={handleNavClick}
                     className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-emerald bg-brand-emerald/10 border border-brand-emerald/20"
                   >
@@ -230,7 +230,7 @@ export const DashboardLayout = ({ children }) => {
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Link
-              to="/live/cpl-2026"
+              to="/"
               target="_blank"
               className="hidden lg:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-accent hover:bg-surface-hover text-slate-300 hover:text-white border border-border-subtle transition-colors"
             >
@@ -242,7 +242,7 @@ export const DashboardLayout = ({ children }) => {
               variant="success"
               size="sm"
               leftIcon={Gavel}
-              onClick={() => navigate('/auctioneer/live')}
+              onClick={() => navigate('/admin/live')}
               className="text-xs px-2.5 sm:px-3 py-1.5 font-bold shadow-glow-emerald"
             >
               <span className="hidden xs:inline sm:inline">Launch Live Floor</span>

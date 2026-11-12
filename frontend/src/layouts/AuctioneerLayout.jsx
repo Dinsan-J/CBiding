@@ -10,7 +10,7 @@ export const AuctioneerLayout = ({ children, tournamentTitle = "Colombo Premier 
       <header className="h-14 bg-surface-card border-b border-border-subtle px-4 sm:px-6 flex items-center justify-between shrink-0 z-30">
         <div className="flex items-center gap-4">
           <Link
-            to="/dashboard"
+            to="/admin"
             className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-colors py-1 px-2 rounded-lg hover:bg-surface-accent"
           >
             <ArrowLeft className="w-4 h-4" />

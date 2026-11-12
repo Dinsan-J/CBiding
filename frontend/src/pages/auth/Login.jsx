@@ -13,14 +13,14 @@ export const Login = () => {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    navigate('/dashboard');
+    navigate('/admin');
   };
 
   const handleQuickDemo = (role) => {
     if (role === 'auctioneer') {
-      navigate('/auctioneer/live');
+      navigate('/admin/live');
     } else {
-      navigate('/dashboard');
+      navigate('/admin');
     }
   };
 

@@ -33,14 +33,31 @@ export function App() {
     <AuctionProvider>
       <BrowserRouter>
         <Routes>
+          {/* Public Spectator Live Experience at Root (cbiding.vercel.app) */}
+          <Route path="/" element={<PublicLayout />}>
+            <Route index element={<PublicLiveTracker />} />
+            <Route path="players" element={<PublicPlayersDirectory />} />
+            <Route path="teams" element={<PublicTeamsExplorer />} />
+            <Route path="stats" element={<PublicAuctionStats />} />
+          </Route>
+
+          {/* Tournament-Specific Public Experience (e.g. /live/cpl-2026) */}
+          <Route path="/live/:slug" element={<PublicLayout />}>
+            <Route index element={<PublicLiveTracker />} />
+            <Route path="players" element={<PublicPlayersDirectory />} />
+            <Route path="teams" element={<PublicTeamsExplorer />} />
+            <Route path="stats" element={<PublicAuctionStats />} />
+          </Route>
+
+          {/* Public Player Self-Registration */}
+          <Route path="/register" element={<PublicPlayerRegistration />} />
+          <Route path="/register/:slug" element={<PublicPlayerRegistration />} />
+
           {/* Authentication Routes */}
           <Route path="/login" element={<Login />} />
 
-          {/* Public Player Self-Registration Route */}
-          <Route path="/register/:slug" element={<PublicPlayerRegistration />} />
-
-          {/* Organiser Dashboard Workspace */}
-          <Route path="/dashboard" element={<DashboardLayout />}>
+          {/* Organiser / Admin Dashboard Workspace (/admin) */}
+          <Route path="/admin" element={<DashboardLayout />}>
             <Route index element={<OrganiserOverview />} />
             <Route path="tournaments" element={<TournamentsManager />} />
             <Route path="teams" element={<TeamsManager />} />
@@ -49,22 +66,20 @@ export function App() {
             <Route path="showcase" element={<DesignSystemShowcase />} />
           </Route>
 
-          {/* Public Spectator Live Experience (Cricbuzz Inspired) */}
-          <Route path="/live/:slug" element={<PublicLayout />}>
-            <Route index element={<PublicLiveTracker />} />
-            <Route path="players" element={<PublicPlayersDirectory />} />
-            <Route path="teams" element={<PublicTeamsExplorer />} />
-            <Route path="stats" element={<PublicAuctionStats />} />
+          {/* Live Auctioneer Operator Cockpit (Both /admin/live and /auctioneer/live) */}
+          <Route path="/admin/live" element={<AuctioneerLayout />}>
+            <Route index element={<LiveAuctionCockpit />} />
           </Route>
-
-          {/* Auctioneer Live Operator Cockpit */}
           <Route path="/auctioneer/live" element={<AuctioneerLayout />}>
             <Route index element={<LiveAuctionCockpit />} />
           </Route>
 
-          {/* Root Fallback */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          {/* Backward Compatibility Aliases for /dashboard */}
+          <Route path="/dashboard" element={<Navigate to="/admin" replace />} />
+          <Route path="/dashboard/*" element={<Navigate to="/admin" replace />} />
+
+          {/* Fallback to Public Live Floor */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuctionProvider>

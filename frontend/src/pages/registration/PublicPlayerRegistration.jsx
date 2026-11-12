@@ -85,7 +85,7 @@ export const PublicPlayerRegistration = () => {
             <p><span className="text-slate-400">Status:</span> <span className="text-brand-gold font-bold">Pending Review</span></p>
           </div>
           <div className="flex flex-col gap-2">
-            <Link to={`/live/${activeTournament.slug}`}>
+            <Link to="/">
               <Button variant="primary" className="w-full">
                 Visit Live Auction Tracker
               </Button>
@@ -107,11 +107,11 @@ export const PublicPlayerRegistration = () => {
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Back link */}
         <Link 
-          to={`/live/${activeTournament.slug}`}
+          to="/"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-brand-cyan transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          Back to Tournament Hub
+          Back to Live Floor
         </Link>
 
         {/* Header Hero Card */}

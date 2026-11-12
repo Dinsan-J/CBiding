@@ -13,11 +13,15 @@ export const PublicLayout = ({ children, tournament }) => {
   const currentSlug = currentTournament?.slug || slug || 'cpl-2026';
   const currentTitle = currentTournament?.title || 'Colombo Premier League 2026';
 
+  const isCustomSlug = Boolean(slug);
+  const homePath = isCustomSlug ? `/live/${slug}` : '/';
+  const registerPath = isCustomSlug ? `/register/${slug}` : '/register';
+
   const navLinks = [
-    { label: 'Live Auction', path: `/live/${currentSlug}`, icon: Radio, highlight: true },
-    { label: 'All Players', path: `/live/${currentSlug}/players`, icon: Search },
-    { label: 'Teams & Squads', path: `/live/${currentSlug}/teams`, icon: Shield },
-    { label: 'Auction Stats', path: `/live/${currentSlug}/stats`, icon: BarChart3 },
+    { label: 'Live Auction', path: homePath, icon: Radio, highlight: true, exact: true },
+    { label: 'All Players', path: isCustomSlug ? `/live/${slug}/players` : '/players', icon: Search },
+    { label: 'Teams & Squads', path: isCustomSlug ? `/live/${slug}/teams` : '/teams', icon: Shield },
+    { label: 'Auction Stats', path: isCustomSlug ? `/live/${slug}/stats` : '/stats', icon: BarChart3 },
   ];
 
   return (
@@ -28,7 +32,7 @@ export const PublicLayout = ({ children, tournament }) => {
           <div className="flex items-center justify-between h-16 gap-2">
             {/* Branding / Logo */}
             <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 min-w-0">
-              <Link to={`/live/${currentSlug}`} className="flex items-center gap-2 group shrink-0">
+              <Link to={homePath} className="flex items-center gap-2 group shrink-0">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-lg shadow-glow-cyan shrink-0">
                   C
                 </div>
@@ -55,7 +59,7 @@ export const PublicLayout = ({ children, tournament }) => {
                 <NavLink
                   key={item.path}
                   to={item.path}
-                  end={item.path === `/live/${currentSlug}`}
+                  end={item.exact || item.path === homePath}
                   className={({ isActive }) => cn(
                     'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors',
                     isActive 
@@ -72,7 +76,7 @@ export const PublicLayout = ({ children, tournament }) => {
             {/* Header Right Actions (Single CTA Button) */}
             <div className="flex items-center gap-2 shrink-0">
               <Link
-                to={`/register/${currentSlug}`}
+                to={registerPath}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
               >
                 <UserPlus className="w-3.5 h-3.5" />
@@ -89,7 +93,7 @@ export const PublicLayout = ({ children, tournament }) => {
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.path === `/live/${currentSlug}`}
+              end={item.exact || item.path === homePath}
               className={({ isActive }) => cn(
                 'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors shrink-0',
                 isActive 
@@ -126,7 +130,7 @@ export const PublicLayout = ({ children, tournament }) => {
               Real-time Sync Active
             </span>
             <span>•</span>
-            <Link to="/login" className="hover:text-brand-cyan transition-colors">Organiser Login</Link>
+            <Link to="/admin" className="hover:text-brand-cyan transition-colors">Organiser Admin</Link>
           </div>
         </div>
       </footer>
