@@ -13,16 +13,24 @@ import {
   Menu,
   X,
   ExternalLink,
-  Radio
+  Radio,
+  LogOut
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { Button } from '../components/ui/Button';
+import { useAuth } from '../context/AuthContext';
 
 export const DashboardLayout = ({ children }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const navigation = [
     { name: 'Overview', to: '/admin', icon: LayoutDashboard },
@@ -107,17 +115,26 @@ export const DashboardLayout = ({ children }) => {
           ))}
         </nav>
 
-        {/* User Workspace Profile Footer */}
+        {/* User Workspace Profile Footer with Logout */}
         <div className="p-3 border-t border-border-subtle bg-canvas-subtle/50">
           <div className="flex items-center gap-3 p-2 rounded-xl bg-surface-card border border-border-subtle">
             <div className="w-8 h-8 rounded-lg bg-surface-accent flex items-center justify-center font-bold text-xs text-brand-cyan shrink-0">
-              SL
+              AD
             </div>
             {!isCollapsed && (
-              <div className="overflow-hidden leading-tight flex-1">
-                <p className="text-xs font-bold text-white truncate">SLC Tournament Org</p>
-                <p className="text-[10px] text-slate-400 truncate">Pro SaaS Plan</p>
-              </div>
+              <>
+                <div className="overflow-hidden leading-tight flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{user?.displayName || 'Admin Organiser'}</p>
+                  <p className="text-[10px] text-brand-cyan font-mono truncate">{user?.role || 'Admin'} Session</p>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  title="Sign Out"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer shrink-0"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -201,10 +218,21 @@ export const DashboardLayout = ({ children }) => {
                 </div>
               </nav>
 
-              {/* Mobile Drawer Footer */}
-              <div className="p-4 border-t border-border-subtle bg-slate-950/40">
-                <p className="text-xs font-bold text-white">SLC Tournament Org</p>
-                <p className="text-[10px] text-slate-400">Pro SaaS Plan Active</p>
+              {/* Mobile Drawer Footer with Sign Out */}
+              <div className="p-4 border-t border-border-subtle bg-slate-950/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 pr-2">
+                    <p className="text-xs font-bold text-white truncate">{user?.displayName || 'Admin Organiser'}</p>
+                    <p className="text-[10px] text-brand-cyan font-mono">Authenticated Admin</p>
+                  </div>
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors shrink-0"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out</span>
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
@@ -248,6 +276,14 @@ export const DashboardLayout = ({ children }) => {
               <span className="hidden xs:inline sm:inline">Launch Live Floor</span>
               <span className="xs:hidden sm:hidden">Live Floor</span>
             </Button>
+
+            <button
+              onClick={handleLogout}
+              title="Sign Out of Admin"
+              className="p-1.5 sm:p-2 rounded-lg text-slate-400 hover:text-red-400 hover:bg-red-500/10 border border-border-subtle transition-colors cursor-pointer"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
