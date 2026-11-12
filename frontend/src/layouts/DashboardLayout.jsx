@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { pageVariants } from '../utils/motion';
 import { 
   LayoutDashboard, 
   Trophy, 
@@ -9,12 +8,12 @@ import {
   Shield, 
   Gavel, 
   Settings, 
-  LogOut, 
   ChevronLeft, 
   ChevronRight,
   Menu,
+  X,
   ExternalLink,
-  PlusCircle
+  Radio
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { Button } from '../components/ui/Button';
@@ -33,6 +32,10 @@ export const DashboardLayout = ({ children }) => {
     { name: 'Live Auction Cockpit', to: '/auctioneer/live', icon: Gavel, highlight: true },
     { name: 'Settings', to: '/dashboard/settings', icon: Settings },
   ];
+
+  const handleNavClick = () => {
+    setIsMobileMenuOpen(false);
+  };
 
   return (
     <div className="min-h-screen bg-canvas text-slate-100 flex font-sans">
@@ -120,30 +123,119 @@ export const DashboardLayout = ({ children }) => {
         </div>
       </motion.aside>
 
+      {/* Mobile Slide-Over Navigation Drawer */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <div className="fixed inset-0 z-50 md:hidden flex">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm"
+            />
+
+            {/* Drawer Content */}
+            <motion.div
+              initial={{ x: -280 }}
+              animate={{ x: 0 }}
+              exit={{ x: -280 }}
+              transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              className="relative w-72 max-w-[85vw] bg-surface-card border-r border-border-subtle flex flex-col h-full z-10 shadow-2xl"
+            >
+              {/* Header */}
+              <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-base shadow-glow-cyan">
+                    C
+                  </div>
+                  <span className="font-extrabold text-base text-white">CBid Engine</span>
+                </div>
+                <button
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-surface-accent transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Navigation Links */}
+              <nav className="flex-1 px-3 py-4 space-y-1.5 overflow-y-auto">
+                {navigation.map((item) => (
+                  <NavLink
+                    key={item.name}
+                    to={item.to}
+                    end={item.to === '/dashboard'}
+                    onClick={handleNavClick}
+                    className={({ isActive }) => cn(
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition-all',
+                      isActive
+                        ? 'bg-brand-cyan text-slate-950 font-bold shadow-glow-cyan'
+                        : 'text-slate-300 hover:text-white hover:bg-surface-accent'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5 shrink-0" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                ))}
+
+                <div className="pt-4 mt-4 border-t border-border-subtle space-y-2">
+                  <Link
+                    to="/live/cpl-2026"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-cyan bg-brand-cyan/10 border border-brand-cyan/20"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>View Public Live Tracker</span>
+                  </Link>
+
+                  <Link
+                    to="/register/cpl-2026"
+                    onClick={handleNavClick}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-brand-emerald bg-brand-emerald/10 border border-brand-emerald/20"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    <span>Player Registration Form</span>
+                  </Link>
+                </div>
+              </nav>
+
+              {/* Mobile Drawer Footer */}
+              <div className="p-4 border-t border-border-subtle bg-slate-950/40">
+                <p className="text-xs font-bold text-white">SLC Tournament Org</p>
+                <p className="text-[10px] text-slate-400">Pro SaaS Plan Active</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Main Layout Body */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Header */}
-        <header className="h-16 bg-surface-card/80 backdrop-blur-md border-b border-border-subtle px-4 sm:px-6 flex items-center justify-between sticky top-0 z-20">
-          <div className="flex items-center gap-3">
+        <header className="h-16 bg-surface-card/90 backdrop-blur-md border-b border-border-subtle px-3 sm:px-6 flex items-center justify-between sticky top-0 z-20">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-surface-accent"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-surface-accent cursor-pointer shrink-0"
+              aria-label="Open navigation menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+            <h2 className="text-sm sm:text-lg font-bold text-white tracking-tight truncate">
               Tournament Workspace
             </h2>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <Link
               to="/live/cpl-2026"
               target="_blank"
-              className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-accent hover:bg-surface-hover text-slate-300 hover:text-white border border-border-subtle transition-colors"
+              className="hidden lg:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-accent hover:bg-surface-hover text-slate-300 hover:text-white border border-border-subtle transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5 text-brand-cyan" />
-              View Public Tracker
+              Public Tracker
             </Link>
 
             <Button
@@ -151,25 +243,24 @@ export const DashboardLayout = ({ children }) => {
               size="sm"
               leftIcon={Gavel}
               onClick={() => navigate('/auctioneer/live')}
+              className="text-xs px-2.5 sm:px-3 py-1.5 font-bold shadow-glow-emerald"
             >
-              Launch Live Floor
+              <span className="hidden xs:inline sm:inline">Launch Live Floor</span>
+              <span className="xs:hidden sm:hidden">Live Floor</span>
             </Button>
           </div>
         </header>
 
-        {/* Routed View Space with Smooth Transitions */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={location.pathname}
-              variants={pageVariants}
-              initial="initial"
-              animate="animate"
-              exit="exit"
-            >
-              {children || <Outlet />}
-            </motion.div>
-          </AnimatePresence>
+        {/* Routed View Space with Guaranteed, Non-Blocking Smooth Entrance */}
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          <motion.div
+            key={location.pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.22, ease: "easeOut" }}
+          >
+            {children || <Outlet />}
+          </motion.div>
         </main>
       </div>
     </div>

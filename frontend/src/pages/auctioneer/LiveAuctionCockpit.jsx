@@ -385,38 +385,40 @@ export const LiveAuctionCockpit = () => {
           </div>
         </div>
 
-        {/* GAVEL HAMMER CONTROLS BAR */}
-        <div className="sticky bottom-0 bg-surface-card/95 backdrop-blur-md border border-border-subtle rounded-2xl p-4 shadow-2xl flex flex-wrap items-center justify-between gap-3 mt-auto z-20">
-          <div className="flex items-center gap-2">
+        {/* GAVEL HAMMER CONTROLS BAR (RESPONSIVE) */}
+        <div className="sticky bottom-0 bg-surface-card/95 backdrop-blur-md border border-border-subtle rounded-2xl p-3 sm:p-4 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-3 mt-auto z-20">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
             <Button
               variant="outline"
-              size="md"
+              size="sm"
               leftIcon={SkipForward}
               onClick={hammerUnsold}
+              className="flex-1 sm:flex-initial"
             >
-              Skip Lot
+              Skip
             </Button>
             <Button
               variant="danger"
-              size="md"
+              size="sm"
               leftIcon={AlertTriangle}
               onClick={hammerUnsold}
+              className="flex-1 sm:flex-initial"
             >
-              Hammer UNSOLD (U)
+              UNSOLD (U)
             </Button>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400 hidden sm:inline">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
+            <span className="text-xs text-slate-400 hidden xl:inline">
               Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Enter</kbd> = Sold, <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">U</kbd> = Unsold
             </span>
             <Button
               variant="gold"
-              size="xl"
+              size="lg"
               leftIcon={Gavel}
               disabled={!currentHighestTeam}
               onClick={() => setIsConfirmSoldOpen(true)}
-              className="text-base sm:text-lg font-black shadow-glow-gold"
+              className="w-full sm:w-auto text-sm sm:text-base font-black shadow-glow-gold py-2.5 sm:py-3.5"
             >
               HAMMER SOLD (Enter)
             </Button>

@@ -88,7 +88,7 @@ export const PublicTeamsExplorer = () => {
                 {/* Toggle Squad Accordion */}
                 <button
                   onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
-                  className="px-4 py-2 rounded-xl bg-surface-accent hover:bg-surface-hover text-xs font-bold text-white flex items-center gap-2 transition-colors cursor-pointer border border-border-subtle shrink-0"
+                  className="w-full lg:w-auto justify-center px-4 py-2.5 rounded-xl bg-surface-accent hover:bg-surface-hover text-xs font-bold text-white flex items-center gap-2 transition-colors cursor-pointer border border-border-subtle shrink-0"
                 >
                   <Users className="w-4 h-4 text-brand-cyan" />
                   <span>{isExpanded ? 'Hide Squad' : `View Squad (${acquiredPlayers.length})`}</span>
