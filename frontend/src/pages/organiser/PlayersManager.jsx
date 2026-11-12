@@ -99,7 +99,7 @@ export const PlayersManager = () => {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `CBid_${activeTournament.slug}_roster.csv`;
+    a.download = `BidX_${activeTournament.slug}_roster.csv`;
     a.click();
   };
 

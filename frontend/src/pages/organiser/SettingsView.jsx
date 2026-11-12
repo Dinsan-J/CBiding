@@ -131,7 +131,7 @@ export const SettingsView = () => {
             <div className="p-3 bg-slate-900 rounded-lg font-sans text-slate-200 border border-slate-800 leading-relaxed">
               🏏 <strong>Congratulations Wanindu Hasaranga!</strong><br />
               You have been acquired by <strong>Colombo Strikers</strong> for <strong>LKR 14,500,000</strong> in the <strong>Colombo Premier League 2026</strong> auction.<br /><br />
-              View official squad: <em>https://cbid.lk/live/cpl-2026/teams</em>
+              View official squad: <em>https://bidx.lk/live/cpl-2026/teams</em>
             </div>
           </div>
         </Card>

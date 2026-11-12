@@ -84,7 +84,7 @@ export const DesignSystemShowcase = () => {
             PHASE 2 FOUNDATIONS READY
           </Badge>
           <h1 className="text-3xl sm:text-4xl font-extrabold text-white tracking-tight leading-tight">
-            CBid Design System & Motion Specification
+            BidX Design System & Motion Specification
           </h1>
           <p className="text-sm sm:text-base text-slate-300 mt-2 leading-relaxed">
             Minimalistic, sports-tech visual identity built with dark obsidian surfaces, electric cyan & emerald accents, and high-precision Framer Motion animations.

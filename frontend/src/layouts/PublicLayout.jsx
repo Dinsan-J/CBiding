@@ -33,8 +33,8 @@ export const PublicLayout = ({ children, tournament }) => {
             {/* Branding / Logo */}
             <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 min-w-0">
               <Link to={homePath} className="flex items-center gap-2 group shrink-0">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-lg shadow-glow-cyan shrink-0">
-                  C
+                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-glow-cyan shrink-0">
+                  BX
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
@@ -123,7 +123,7 @@ export const PublicLayout = ({ children, tournament }) => {
       {/* Footer */}
       <footer className="border-t border-border-subtle bg-surface-card py-6 text-center text-xs text-slate-500 mt-auto">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p>© 2026 CBid — SportsTech Auction Management Platform. All Rights Reserved.</p>
+          <p>© 2026 BidX — Cricket Auction Platform. All Rights Reserved.</p>
           <div className="flex items-center gap-4 text-slate-400">
             <span className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />

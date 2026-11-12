@@ -56,8 +56,8 @@ export const DashboardLayout = ({ children }) => {
         {/* Brand & Collapse Toggle */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
           <Link to="/admin" className="flex items-center gap-3 overflow-hidden">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-lg shrink-0 shadow-glow-cyan">
-              C
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shrink-0 shadow-glow-cyan">
+              BX
             </div>
             {!isCollapsed && (
               <motion.div
@@ -67,7 +67,7 @@ export const DashboardLayout = ({ children }) => {
                 className="leading-none whitespace-nowrap"
               >
                 <span className="font-extrabold text-base tracking-tight text-white block">
-                  CBid Engine
+                  BidX Engine
                 </span>
                 <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
                   Organiser Suite
@@ -164,10 +164,10 @@ export const DashboardLayout = ({ children }) => {
               {/* Header */}
               <div className="h-16 flex items-center justify-between px-4 border-b border-border-subtle">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-base shadow-glow-cyan">
-                    C
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-xs tracking-tight shadow-glow-cyan">
+                    BX
                   </div>
-                  <span className="font-extrabold text-base text-white">CBid Engine</span>
+                  <span className="font-extrabold text-base text-white">BidX Engine</span>
                 </div>
                 <button
                   onClick={() => setIsMobileMenuOpen(false)}

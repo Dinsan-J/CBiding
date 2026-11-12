@@ -49,8 +49,8 @@ export const Login = () => {
         {/* Brand Header */}
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2.5">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-2xl shadow-glow-cyan">
-              C
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-glow-cyan">
+              BX
             </div>
           </Link>
           <div className="flex items-center justify-center gap-1.5 pt-1">
@@ -59,10 +59,10 @@ export const Login = () => {
             </Badge>
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            Admin Authentication
+            Sign in to BidX Engine
           </h1>
           <p className="text-xs sm:text-sm text-slate-400">
-            Sign in with organiser credentials to manage auctions
+            Professional Cricket Auction Management Platform
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export const Login = () => {
               type="text"
               required
               leftIcon={Mail}
-              placeholder="e.g. admin or admin@cbid.com"
+              placeholder="e.g. admin or admin@bidx.com"
               value={identifier}
               onChange={(e) => {
                 setIdentifier(e.target.value);
@@ -119,7 +119,7 @@ export const Login = () => {
               loading={isLoading}
               className="w-full font-bold shadow-glow-cyan cursor-pointer"
             >
-              Sign In to Admin Workspace
+              Sign In to BidX Admin
             </Button>
           </form>
 

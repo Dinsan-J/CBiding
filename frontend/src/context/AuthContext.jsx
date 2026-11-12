@@ -2,13 +2,13 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 
-const STORAGE_KEY = 'cbid_admin_session';
+const STORAGE_KEY = 'bidx_admin_session';
 
 // Supported default admin credentials
 const VALID_CREDENTIALS = [
-  { username: 'admin', email: 'admin@cbid.com', password: 'admin' },
-  { username: 'admin', email: 'admin@cbid.com', password: 'admin123' },
-  { username: 'organiser', email: 'organiser@cbid.lk', password: 'password123' },
+  { username: 'admin', email: 'admin@bidx.com', password: 'admin' },
+  { username: 'admin', email: 'admin@bidx.com', password: 'admin123' },
+  { username: 'organiser', email: 'organiser@bidx.com', password: 'password123' },
 ];
 
 export const AuthProvider = ({ children }) => {
@@ -43,7 +43,7 @@ export const AuthProvider = ({ children }) => {
     const userData = {
       id: 'admin_slc_01',
       username: match ? match.username : 'admin',
-      email: match ? match.email : 'admin@cbid.com',
+      email: match ? match.email : 'admin@bidx.com',
       displayName: 'SLC Chief Organiser',
       role: 'ADMIN',
       tenantId: 'tenant_slc_2026',
