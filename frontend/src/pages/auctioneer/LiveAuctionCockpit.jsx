@@ -21,6 +21,7 @@ import { useAuction } from '../../context/AuctionContext';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Card } from '../../components/ui/Card';
+import { Skeleton } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { NumberTicker } from '../../components/ui/NumberTicker';
@@ -31,6 +32,7 @@ import { lotEntranceVariants, tabContentVariants } from '../../utils/motion';
 export const LiveAuctionCockpit = () => {
   const {
     activeTournament,
+    isLiveLoading,
     teams,
     players,
     activeLot,
@@ -49,13 +51,13 @@ export const LiveAuctionCockpit = () => {
     closeSoldModal
   } = useAuction();
 
-  // Active increment step selection
-  const [selectedIncrement, setSelectedIncrement] = useState(50000);
+  // Active increment step selection (Default 500 as requested: 500, 1000, 1500, 2000, 2500)
+  const [selectedIncrement, setSelectedIncrement] = useState(500);
   const [isConfirmSoldOpen, setIsConfirmSoldOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'bids', 'unsold'
 
   // Dynamic Increment Options
-  const incrementOptions = [10000, 25000, 50000, 100000, 250000];
+  const incrementOptions = [500, 1000, 1500, 2000, 2500];
 
   // Next queued un-auctioned players
   const queuedPlayers = players.filter(p => 
@@ -101,6 +103,91 @@ export const LiveAuctionCockpit = () => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [toggleTimer, currentHighestTeam, hammerUnsold, undoLastBid]);
+
+  // ── SKELETON LOADING STATE (shows while backend data is syncing on page refresh) ──
+  if (isLiveLoading) {
+    return (
+      <div className="h-[calc(100vh-3.5rem)] flex flex-col xl:flex-row gap-4 p-3 sm:p-4 overflow-hidden bg-canvas">
+        {/* Left: Main Cockpit Skeleton */}
+        <div className="flex-1 flex flex-col gap-4 overflow-hidden">
+          {/* Player Spotlight Card Skeleton */}
+          <div className="relative rounded-2xl bg-surface-card border border-border-subtle p-5 shadow-2xl flex flex-col md:flex-row gap-6 items-center">
+            <Skeleton className="w-36 h-44 sm:w-44 sm:h-52 rounded-2xl shrink-0" />
+            <div className="flex-1 space-y-3 w-full">
+              <div className="flex gap-2">
+                <Skeleton className="h-6 w-24 rounded-lg" />
+                <Skeleton className="h-6 w-20 rounded-lg" />
+              </div>
+              <Skeleton className="h-9 w-72 rounded-lg" />
+              <Skeleton className="h-4 w-56 rounded-lg" />
+              <div className="grid grid-cols-4 gap-2">
+                <Skeleton className="h-14 rounded-xl" />
+                <Skeleton className="h-14 rounded-xl" />
+                <Skeleton className="h-14 rounded-xl" />
+                <Skeleton className="h-14 rounded-xl" />
+              </div>
+            </div>
+            <div className="flex flex-col items-center gap-3 shrink-0">
+              <Skeleton className="w-28 h-28 rounded-full" />
+              <Skeleton className="h-8 w-24 rounded-lg" />
+              <Skeleton className="h-8 w-24 rounded-lg" />
+            </div>
+          </div>
+
+          {/* Bid Engine & Leading Franchise Skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="rounded-2xl bg-surface-card border border-border-subtle p-5 space-y-3">
+              <Skeleton className="h-4 w-40 rounded-lg" />
+              <Skeleton className="h-14 w-56 rounded-lg" />
+              <Skeleton className="h-4 w-32 rounded-lg" />
+              <div className="flex gap-2 pt-2 border-t border-border-subtle">
+                <Skeleton className="h-4 w-10 rounded-lg" />
+                {[1,2,3,4,5].map(i => <Skeleton key={i} className="h-7 w-14 rounded-lg" />)}
+              </div>
+            </div>
+            <div className="rounded-2xl bg-surface-card border border-border-subtle p-5 space-y-3">
+              <Skeleton className="h-4 w-40 rounded-lg" />
+              <div className="flex items-center gap-4 py-4">
+                <Skeleton className="w-16 h-16 rounded-2xl shrink-0" />
+                <div className="space-y-2 flex-1">
+                  <Skeleton className="h-6 w-40 rounded-lg" />
+                  <Skeleton className="h-4 w-28 rounded-lg" />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Team Bidding Grid Skeleton */}
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-48 rounded-lg" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            </div>
+          </div>
+
+          {/* Controls Bar Skeleton */}
+          <div className="rounded-2xl bg-surface-card border border-border-subtle p-4 flex justify-between items-center gap-3">
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-28 rounded-lg" />
+              <Skeleton className="h-9 w-28 rounded-lg" />
+              <Skeleton className="h-9 w-28 rounded-lg" />
+            </div>
+            <Skeleton className="h-12 w-44 rounded-xl" />
+          </div>
+        </div>
+
+        {/* Right Sidebar Skeleton */}
+        <div className="w-full xl:w-96 flex flex-col bg-surface-card border border-border-subtle rounded-2xl p-4 gap-3 shrink-0">
+          <div className="flex gap-1 p-1 bg-canvas rounded-xl border border-border-subtle">
+            <Skeleton className="flex-1 h-8 rounded-lg" />
+            <Skeleton className="flex-1 h-8 rounded-lg" />
+            <Skeleton className="flex-1 h-8 rounded-lg" />
+          </div>
+          {[1,2,3,4].map(i => <Skeleton key={i} className="h-14 rounded-xl" />)}
+        </div>
+      </div>
+    );
+  }
 
   if (!currentLotPlayer) {
     return (
@@ -277,7 +364,7 @@ export const LiveAuctionCockpit = () => {
                         : 'bg-surface-accent text-slate-300 hover:text-white border border-border-subtle'
                     }`}
                   >
-                    +{inc >= 100000 ? `${inc/100000}L` : `${inc/1000}k`}
+                    +{inc >= 100000 ? `${inc/100000}L` : inc >= 1000 ? `${inc/1000}k` : `${inc}`}
                   </button>
                 ))}
               </div>

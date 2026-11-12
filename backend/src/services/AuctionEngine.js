@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Auction = require('../models/Auction');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
@@ -69,7 +70,13 @@ class AuctionEngine {
    * Place an atomic bid with concurrency protection
    */
   static async placeBid({ auctionId, playerId, teamId, userId, amount }) {
-    const auction = await Auction.findById(auctionId);
+    // Parallelize core queries for minimal network latency
+    const [auction, team, player] = await Promise.all([
+      Auction.findById(auctionId),
+      Team.findById(teamId),
+      Player.findById(playerId)
+    ]);
+
     if (!auction || auction.status !== 'LIVE') {
       throw new Error('Auction is not live for bidding.');
     }
@@ -78,12 +85,10 @@ class AuctionEngine {
       throw new Error('This player is not the active lot on the auction floor.');
     }
 
-    const team = await Team.findById(teamId);
     if (!team) {
       throw new Error('Bidding franchise not found.');
     }
 
-    const player = await Player.findById(playerId);
     if (!player || player.status !== 'LIVE') {
       throw new Error('Player is not active on floor.');
     }
@@ -131,25 +136,26 @@ class AuctionEngine {
       throw new Error('CONCURRENT_BID_CONFLICT: Another bid was placed at the same moment. Please retry.');
     }
 
-    // Log Bid
-    const bidRecord = await Bid.create({
-      tenantId: auction.tenantId,
-      auctionId: auction._id,
-      playerId: player._id,
-      teamId: team._id,
-      amount: proposedBid,
-      bidSequence: updatedAuction.currentLot.bidCount,
-      placedByUserId: userId
-    });
-
-    await AuditLog.create({
-      tenantId: auction.tenantId,
-      actorUserId: userId,
-      action: 'BID_PLACED',
-      entityType: 'Bid',
-      entityId: bidRecord._id,
-      snapshotAfter: { amount: proposedBid, teamId: team._id, playerId: player._id }
-    });
+    // Parallelize persistent logging
+    const [bidRecord] = await Promise.all([
+      Bid.create({
+        tenantId: auction.tenantId,
+        auctionId: auction._id,
+        playerId: player._id,
+        teamId: team._id,
+        amount: proposedBid,
+        bidSequence: updatedAuction.currentLot.bidCount,
+        placedByUserId: userId
+      }),
+      AuditLog.create({
+        tenantId: auction.tenantId,
+        actorUserId: userId,
+        action: 'BID_PLACED',
+        entityType: 'Bid',
+        entityId: new mongoose.Types.ObjectId(),
+        snapshotAfter: { amount: proposedBid, teamId: team._id, playerId: player._id }
+      })
+    ]);
 
     return {
       auction: updatedAuction,

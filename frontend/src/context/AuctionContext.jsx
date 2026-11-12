@@ -16,6 +16,9 @@ export const AuctionProvider = ({ children }) => {
   const [activeTournamentId, setActiveTournamentId] = useState("tourn-cpl-2026");
   const [auctionDbId, setAuctionDbId] = useState("6af553972c9ef2619668f184");
 
+  // Loading state for live backend data (prevents flashing mock data on refresh)
+  const [isLiveLoading, setIsLiveLoading] = useState(true);
+
   // Teams & Players State
   const [teams, setTeams] = useState(INITIAL_TEAMS);
   const [players, setPlayers] = useState(INITIAL_PLAYERS);
@@ -155,6 +158,10 @@ export const AuctionProvider = ({ children }) => {
         }
       } catch (err) {
         console.warn('[BidX Context] Running in offline fallback mode:', err.message);
+      } finally {
+        if (isMounted) {
+          setIsLiveLoading(false);
+        }
       }
     };
     fetchLiveData();
@@ -355,7 +362,7 @@ export const AuctionProvider = ({ children }) => {
     };
   }, [auctionDbId]);
 
-  // Action: Place Bid (Authoritative Backend Execution)
+  // Action: Place Bid (Instant Optimistic UI Update + Authoritative Backend Execution)
   const placeBid = useCallback(async (teamId, amount) => {
     const team = teams.find(t => t.id === teamId || t._id === teamId);
     if (!team) return { success: false, reason: "Team not found" };
@@ -363,32 +370,57 @@ export const AuctionProvider = ({ children }) => {
     const targetPlayerId = activeLot.playerId || currentLotPlayer?.id || currentLotPlayer?._id;
     if (!targetPlayerId) return { success: false, reason: "No active player lot on stage." };
 
+    const teamKey = team._id || team.id;
+    const timeStr = new Date().toLocaleTimeString();
+    const tempBidId = `opt-${Date.now()}`;
+
+    // 1. Snapshot previous state for instant rollback if server rejects
+    let rollbackSnapshot = null;
+
+    // 2. INSTANT OPTIMISTIC UI UPDATE (0ms LATENCY)
+    setActiveLot(prev => {
+      rollbackSnapshot = prev;
+      return {
+        ...prev,
+        currentBid: amount,
+        highestBidderTeamId: teamKey,
+        bidCount: prev.bidCount + 1,
+        timerSeconds: activeTournament.timerSeconds || 30,
+        isTimerRunning: true,
+        bidHistory: [
+          { id: tempBidId, teamId: teamKey, amount, timestamp: timeStr },
+          ...prev.bidHistory
+        ]
+      };
+    });
+
+    // 3. Dispatch to backend authoritative auction engine
     try {
       const res = await api.placeBid(auctionDbId, {
         playerId: targetPlayerId,
-        teamId: team._id || team.id,
+        teamId: teamKey,
         amount
       });
 
       if (res?.success && res.data) {
-        const timeStr = new Date().toLocaleTimeString();
+        const serverBid = res.data.bid;
         setActiveLot(prev => ({
           ...prev,
-          currentBid: amount,
-          highestBidderTeamId: team._id || team.id,
-          bidCount: prev.bidCount + 1,
-          timerSeconds: activeTournament.timerSeconds || 30,
-          isTimerRunning: true,
-          bidHistory: [
-            { id: Date.now(), teamId: team._id || team.id, amount, timestamp: timeStr },
-            ...prev.bidHistory
-          ]
+          bidCount: serverBid?.bidSequence || prev.bidCount,
+          bidHistory: prev.bidHistory.map(b => 
+            b.id === tempBidId 
+              ? { ...b, id: serverBid?._id || b.id } 
+              : b
+          )
         }));
         return { success: true };
       }
       return { success: true };
     } catch (err) {
       console.warn('[BidX Engine] Backend rejected bid:', err.message);
+      if (rollbackSnapshot) {
+        setActiveLot(rollbackSnapshot);
+      }
       return { success: false, reason: err.message };
     }
   }, [teams, activeLot.playerId, currentLotPlayer, auctionDbId, activeTournament.timerSeconds]);
@@ -1028,6 +1060,7 @@ export const AuctionProvider = ({ children }) => {
       registerPlayer,
       approveRegistration,
       rejectRegistration,
+      isLiveLoading,
       activeLot,
       currentLotPlayer,
       currentHighestTeam,
