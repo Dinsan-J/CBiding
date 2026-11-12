@@ -70,6 +70,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ status })
     }),
+  deleteAuction: (id) =>
+    request(`/auctions/${id}`, {
+      method: 'DELETE'
+    }),
 
   // Teams
   getTeams: (auctionId) => request(`/teams/auction/${auctionId}`),
@@ -83,6 +87,10 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(data)
     }),
+  deleteTeam: (id) => 
+    request(`/teams/${id}`, {
+      method: 'DELETE'
+    }),
 
   // Players
   getPlayers: (auctionId, params = {}) => {
@@ -93,6 +101,15 @@ export const api = {
     request('/players', {
       method: 'POST',
       body: JSON.stringify(data)
+    }),
+  updatePlayer: (id, data) => 
+    request(`/players/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    }),
+  deletePlayer: (id) => 
+    request(`/players/${id}`, {
+      method: 'DELETE'
     }),
   registerSelf: (slug, data) => 
     request(`/players/register/${slug}`, {
@@ -124,6 +141,10 @@ export const api = {
     }),
   hammerUnsold: (auctionId) => 
     request(`/live/${auctionId}/unsold`, {
+      method: 'POST'
+    }),
+  undoBid: (auctionId) => 
+    request(`/live/${auctionId}/undo-bid`, {
       method: 'POST'
     })
 };

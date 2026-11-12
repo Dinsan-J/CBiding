@@ -6,6 +6,7 @@ const {
   createAuction,
   updateAuction,
   updateAuctionStatus,
+  deleteAuction,
   getPublicAuctionBroadcast
 } = require('../controllers/auctionController');
 const { protect } = require('../middlewares/auth');
@@ -24,7 +25,8 @@ router.route('/')
   .post(createAuction);
 
 router.route('/:id')
-  .put(updateAuction);
+  .put(updateAuction)
+  .delete(deleteAuction);
 
 router.route('/:id/status')
   .put(updateAuctionStatus);

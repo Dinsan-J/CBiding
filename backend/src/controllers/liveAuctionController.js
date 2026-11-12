@@ -3,6 +3,7 @@ const Auction = require('../models/Auction');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const Bid = require('../models/Bid');
+const { resolveAuction } = require('../utils/resolveAuction');
 
 // @desc    Select and bring player lot onto the auction floor
 // @route   POST /api/live/:auctionId/select-lot
@@ -12,8 +13,13 @@ exports.selectLot = async (req, res, next) => {
     const { playerId } = req.body;
     const { auctionId } = req.params;
 
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
     const result = await AuctionEngine.selectLot({
-      auctionId,
+      auctionId: auction._id,
       playerId,
       userId: req.user._id
     });
@@ -21,7 +27,7 @@ exports.selectLot = async (req, res, next) => {
     // Notify connected Socket.IO room if socket dispatcher exists
     if (req.app.get('io')) {
       const io = req.app.get('io');
-      io.to(`auction_${auctionId}`).emit('lot_selected', {
+      io.to(`auction_${auction._id}`).emit('lot_selected', {
         auction: result.auction,
         player: result.player
       });
@@ -44,8 +50,13 @@ exports.placeBid = async (req, res, next) => {
     const { auctionId } = req.params;
     const { playerId, teamId, amount } = req.body;
 
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
     const result = await AuctionEngine.placeBid({
-      auctionId,
+      auctionId: auction._id,
       playerId,
       teamId,
       userId: req.user._id,
@@ -55,7 +66,7 @@ exports.placeBid = async (req, res, next) => {
     // Broadcast Real-time Event
     if (req.app.get('io')) {
       const io = req.app.get('io');
-      io.to(`auction_${auctionId}`).emit('bid_placed', {
+      io.to(`auction_${auction._id}`).emit('bid_placed', {
         auction: result.auction,
         bid: result.bid,
         team: result.team,
@@ -79,14 +90,19 @@ exports.hammerSold = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
 
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
     const result = await AuctionEngine.hammerSold({
-      auctionId,
+      auctionId: auction._id,
       userId: req.user._id
     });
 
     if (req.app.get('io')) {
       const io = req.app.get('io');
-      io.to(`auction_${auctionId}`).emit('lot_sold', {
+      io.to(`auction_${auction._id}`).emit('lot_sold', {
         player: result.player,
         team: result.team,
         acquisition: result.acquisition,
@@ -110,16 +126,55 @@ exports.hammerUnsold = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
 
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
     const result = await AuctionEngine.hammerUnsold({
-      auctionId,
+      auctionId: auction._id,
       userId: req.user._id
     });
 
     if (req.app.get('io')) {
       const io = req.app.get('io');
-      io.to(`auction_${auctionId}`).emit('lot_unsold', {
+      io.to(`auction_${auction._id}`).emit('lot_unsold', {
         player: result.player,
         auction: result.auction
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Undo last bid
+// @route   POST /api/live/:auctionId/undo-bid
+// @access  Private (Auctioneer / Organiser)
+exports.undoBid = async (req, res, next) => {
+  try {
+    const { auctionId } = req.params;
+
+    const auction = await resolveAuction(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Auction not found' });
+    }
+
+    const result = await AuctionEngine.undoLastBid({
+      auctionId: auction._id,
+      userId: req.user._id
+    });
+
+    if (req.app.get('io')) {
+      const io = req.app.get('io');
+      io.to(`auction_${auction._id}`).emit('bid_undone', {
+        auction: result.auction,
+        undoneBid: result.undoneBid
       });
     }
 
@@ -139,24 +194,24 @@ exports.getLiveAuctionState = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
 
-    const auction = await Auction.findById(auctionId)
-      .populate('currentLot.playerId')
-      .populate('currentLot.highestBidderTeamId');
-
+    const auction = await resolveAuction(auctionId);
     if (!auction) {
       return res.status(404).json({ success: false, error: 'Auction not found' });
     }
 
-    const teams = await Team.find({ auctionId });
-    const queuedPlayers = await Player.find({ auctionId, status: { $in: ['QUEUED', 'LIVE'] } }).sort({ lotNumber: 1 });
-    const unsoldPlayers = await Player.find({ auctionId, status: 'UNSOLD' }).sort({ lotNumber: 1 });
-    const soldPlayers = await Player.find({ auctionId, status: 'SOLD' })
+    await auction.populate('currentLot.playerId');
+    await auction.populate('currentLot.highestBidderTeamId');
+
+    const teams = await Team.find({ auctionId: auction._id });
+    const queuedPlayers = await Player.find({ auctionId: auction._id, status: { $in: ['QUEUED', 'LIVE'] } }).sort({ lotNumber: 1 });
+    const unsoldPlayers = await Player.find({ auctionId: auction._id, status: 'UNSOLD' }).sort({ lotNumber: 1 });
+    const soldPlayers = await Player.find({ auctionId: auction._id, status: 'SOLD' })
       .populate('winningTeamId', 'name shortName logoUrl primaryColor')
       .sort({ soldAt: -1 });
 
-    const recentBids = await Bid.find({ auctionId })
+    const recentBids = await Bid.find({ auctionId: auction._id })
       .sort({ timestamp: -1 })
-      .limit(10)
+      .limit(15)
       .populate('teamId', 'name shortName logoUrl primaryColor')
       .populate('playerId', 'fullName photoUrl');
 

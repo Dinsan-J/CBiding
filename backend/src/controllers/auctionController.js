@@ -2,13 +2,23 @@ const Auction = require('../models/Auction');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const Bid = require('../models/Bid');
+const { resolveAuction } = require('../utils/resolveAuction');
 
 // @desc    Get all auctions for tenant
 // @route   GET /api/auctions
 // @access  Private (Organiser)
 exports.getAuctions = async (req, res, next) => {
   try {
-    const auctions = await Auction.find({ tenantId: req.tenantId })
+    let query = {};
+    if (req.user && req.user.role === 'SUPER_ADMIN') {
+      if (req.headers['x-tenant-id']) {
+        query.tenantId = req.headers['x-tenant-id'];
+      }
+    } else if (req.tenantId) {
+      query.tenantId = req.tenantId;
+    }
+
+    const auctions = await Auction.find(query)
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -28,9 +38,7 @@ exports.getAuctionBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
 
-    const auction = await Auction.findOne({
-      $or: [{ slug: slug }, { _id: slug.match(/^[0-9a-fA-F]{24}$/) ? slug : null }]
-    }).populate('currentLot.playerId').populate('currentLot.highestBidderTeamId');
+    const auction = await resolveAuction(slug);
 
     if (!auction) {
       return res.status(404).json({
@@ -38,6 +46,9 @@ exports.getAuctionBySlug = async (req, res, next) => {
         error: `Auction '${slug}' not found.`
       });
     }
+
+    await auction.populate('currentLot.playerId');
+    await auction.populate('currentLot.highestBidderTeamId');
 
     res.status(200).json({
       success: true,
@@ -55,15 +66,20 @@ exports.createAuction = async (req, res, next) => {
   try {
     const { title, slug, type, currency, startingPurse, minSquadSize, maxSquadSize, minBasePrice, timerSeconds, bidIncrements } = req.body;
 
+    const tenantId = req.tenantId || req.user?.tenantId;
+    if (!tenantId) {
+      return res.status(400).json({ success: false, error: 'Tenant context is required to create an auction.' });
+    }
+
     const generatedSlug = (slug || title)
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-');
 
     const auction = await Auction.create({
-      tenantId: req.tenantId,
+      tenantId,
       title,
-      slug: generatedSlug,
+      slug: `${generatedSlug}-${Date.now().toString().slice(-4)}`,
       type: type || 'MONEY',
       currency: currency || 'LKR',
       startingPurse: startingPurse || 50000000,
@@ -94,7 +110,7 @@ exports.createAuction = async (req, res, next) => {
 // @access  Private (Organiser)
 exports.updateAuction = async (req, res, next) => {
   try {
-    let auction = await Auction.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const auction = await resolveAuction(req.params.id);
 
     if (!auction) {
       return res.status(404).json({
@@ -103,14 +119,14 @@ exports.updateAuction = async (req, res, next) => {
       });
     }
 
-    auction = await Auction.findByIdAndUpdate(req.params.id, req.body, {
+    const updated = await Auction.findByIdAndUpdate(auction._id, req.body, {
       new: true,
       runValidators: true
     });
 
     res.status(200).json({
       success: true,
-      data: auction
+      data: updated
     });
   } catch (error) {
     next(error);
@@ -132,7 +148,7 @@ exports.updateAuctionStatus = async (req, res, next) => {
       });
     }
 
-    const auction = await Auction.findOne({ _id: req.params.id, tenantId: req.tenantId });
+    const auction = await resolveAuction(req.params.id);
     if (!auction) {
       return res.status(404).json({
         success: false,
@@ -166,12 +182,7 @@ exports.getPublicAuctionBroadcast = async (req, res, next) => {
   try {
     const { slug } = req.params;
 
-    const auction = await Auction.findOne({ slug })
-      .populate({
-        path: 'currentLot.playerId',
-        select: '-contactNumber -email'
-      })
-      .populate('currentLot.highestBidderTeamId');
+    const auction = await resolveAuction(slug);
 
     if (!auction) {
       return res.status(404).json({
@@ -180,6 +191,12 @@ exports.getPublicAuctionBroadcast = async (req, res, next) => {
       });
     }
 
+    await auction.populate({
+      path: 'currentLot.playerId',
+      select: '-contactNumber -email'
+    });
+    await auction.populate('currentLot.highestBidderTeamId');
+
     const teams = await Team.find({ auctionId: auction._id }).sort({ totalSpent: -1 });
     const players = await Player.find({ auctionId: auction._id })
       .select('-contactNumber -email')
@@ -187,7 +204,7 @@ exports.getPublicAuctionBroadcast = async (req, res, next) => {
 
     const recentBids = await Bid.find({ auctionId: auction._id })
       .sort({ timestamp: -1 })
-      .limit(10)
+      .limit(15)
       .populate('teamId', 'name shortName primaryColor logoUrl')
       .populate('playerId', 'fullName photoUrl role');
 
@@ -204,3 +221,37 @@ exports.getPublicAuctionBroadcast = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Delete Auction
+// @route   DELETE /api/auctions/:id
+// @access  Private (Organiser / Super Admin)
+exports.deleteAuction = async (req, res, next) => {
+  try {
+    const auction = await resolveAuction(req.params.id);
+    if (!auction) {
+      return res.status(404).json({
+        success: false,
+        error: 'Auction not found.'
+      });
+    }
+
+    if (auction.status === 'LIVE') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete a LIVE tournament auction. Complete or draft it first.'
+      });
+    }
+
+    await Team.deleteMany({ auctionId: auction._id });
+    await Player.deleteMany({ auctionId: auction._id });
+    await auction.deleteOne();
+
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -9,7 +9,7 @@ import { accordionVariants } from '../../utils/motion';
 
 export const PublicTeamsExplorer = () => {
   const { teams, players, activeTournament } = useAuction();
-  const [expandedTeamId, setExpandedTeamId] = useState(teams[0]?.id || null);
+  const [expandedTeamId, setExpandedTeamId] = useState(teams[0]?.id || teams[0]?._id || null);
 
   return (
     <div className="space-y-6">
@@ -29,13 +29,17 @@ export const PublicTeamsExplorer = () => {
 
       <div className="grid grid-cols-1 gap-5">
         {teams.map((team) => {
-          const acquiredPlayers = players.filter(p => p.winningTeamId === team.id && p.status === 'SOLD');
-          const isExpanded = expandedTeamId === team.id;
+          const teamId = team.id || team._id;
+          const acquiredPlayers = players.filter(p => 
+            (p.winningTeamId === teamId || p.winningTeamId === team._id || p.winningTeamId === team.id || String(p.winningTeamId) === String(teamId)) && 
+            p.status === 'SOLD'
+          );
+          const isExpanded = expandedTeamId === teamId;
           const spentPercentage = Math.round((team.totalSpent / team.startingPurse) * 100);
 
           return (
             <Card
-              key={team.id}
+              key={teamId}
               className="p-5 sm:p-6 bg-surface-card border-border-subtle hover:border-slate-600 transition-all"
             >
               {/* Franchise Summary Top Bar */}
@@ -87,7 +91,7 @@ export const PublicTeamsExplorer = () => {
 
                 {/* Toggle Squad Accordion */}
                 <button
-                  onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
+                  onClick={() => setExpandedTeamId(isExpanded ? null : teamId)}
                   className="w-full lg:w-auto justify-center px-4 py-2.5 rounded-xl bg-surface-accent hover:bg-surface-hover text-xs font-bold text-white flex items-center gap-2 transition-colors cursor-pointer border border-border-subtle shrink-0"
                 >
                   <Users className="w-4 h-4 text-brand-cyan" />

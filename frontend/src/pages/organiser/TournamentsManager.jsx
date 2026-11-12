@@ -9,9 +9,18 @@ import { Modal } from '../../components/ui/Modal';
 import { formatCurrency } from '../../utils/formatters';
 
 export const TournamentsManager = () => {
-  const { tournaments, createTournament } = useAuction();
+  const { 
+    tournaments, 
+    activeTournament, 
+    setActiveTournamentId, 
+    createTournament, 
+    updateTournamentStatus, 
+    deleteTournament 
+  } = useAuction();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filter, setFilter] = useState('ALL');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   // New Tournament Form State
   const [form, setForm] = useState({
@@ -26,21 +35,65 @@ export const TournamentsManager = () => {
     timerSeconds: 30
   });
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    createTournament(form);
-    setIsModalOpen(false);
-    setForm({
-      title: '',
-      type: 'MONEY',
-      currency: 'LKR',
-      startingPurse: 50000000,
-      minSquadSize: 15,
-      maxSquadSize: 18,
-      maxOverseas: 5,
-      minBasePrice: 50000,
-      timerSeconds: 30
-    });
+    if (!form.title.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await createTournament(form);
+      if (res && !res.success) {
+        alert(res.error || 'Failed to create tournament');
+      } else {
+        setIsModalOpen(false);
+        setForm({
+          title: '',
+          type: 'MONEY',
+          currency: 'LKR',
+          startingPurse: 50000000,
+          minSquadSize: 15,
+          maxSquadSize: 18,
+          maxOverseas: 5,
+          minBasePrice: 50000,
+          timerSeconds: 30
+        });
+      }
+    } catch (err) {
+      alert(err.message || 'Error creating tournament');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStatusChange = async (tournId, newStatus) => {
+    setActionLoadingId(tournId);
+    try {
+      const res = await updateTournamentStatus(tournId, newStatus);
+      if (res && !res.success) {
+        alert(res.error || 'Failed to update status');
+      }
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleDelete = async (tourn) => {
+    if (tourn.status === 'LIVE') {
+      alert('Cannot delete a LIVE tournament auction. Change status to DRAFT or COMPLETED first.');
+      return;
+    }
+    const tId = tourn.id || tourn._id;
+    if (!window.confirm(`Are you sure you want to permanently delete "${tourn.title}"?`)) {
+      return;
+    }
+    setActionLoadingId(tId);
+    try {
+      const res = await deleteTournament(tId);
+      if (res && !res.success) {
+        alert(res.error || 'Failed to delete tournament');
+      }
+    } finally {
+      setActionLoadingId(null);
+    }
   };
 
   const filteredTournaments = tournaments.filter(t => filter === 'ALL' || t.status === filter);
@@ -124,14 +177,45 @@ export const TournamentsManager = () => {
               </div>
             </div>
 
-            <div className="pt-4 border-t border-border-subtle mt-4 flex items-center justify-between text-xs">
-              <span className="text-slate-400">
-                Ladders: {tourn.bidIncrements ? tourn.bidIncrements.length : 5} tiers
-              </span>
+            <div className="pt-4 border-t border-border-subtle mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-slate-400 uppercase font-mono">Status:</span>
+                <select
+                  value={tourn.status}
+                  disabled={actionLoadingId === (tourn.id || tourn._id)}
+                  onChange={(e) => handleStatusChange(tourn.id || tourn._id, e.target.value)}
+                  className="bg-surface-accent border border-border-subtle rounded px-2 py-1 text-xs text-slate-200 cursor-pointer font-bold"
+                >
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="SCHEDULED">SCHEDULED</option>
+                  <option value="LIVE">LIVE</option>
+                  <option value="PAUSED">PAUSED</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                </select>
+              </div>
 
               <div className="flex items-center gap-2">
-                <Button size="xs" variant="outline">
-                  Configure
+                {(tourn.id === activeTournament?.id || tourn._id === activeTournament?._id) ? (
+                  <Badge variant="emerald" dot size="sm">ACTIVE</Badge>
+                ) : (
+                  <Button 
+                    size="xs" 
+                    variant="outline"
+                    onClick={() => setActiveTournamentId(tourn.id || tourn._id)}
+                  >
+                    Set Active
+                  </Button>
+                )}
+
+                <Button
+                  size="xs"
+                  variant="outline"
+                  disabled={actionLoadingId === (tourn.id || tourn._id) || tourn.status === 'LIVE'}
+                  onClick={() => handleDelete(tourn)}
+                  className="text-red-400 hover:text-red-300 hover:border-red-500/50"
+                  title="Delete Tournament"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
                 </Button>
               </div>
             </div>
@@ -238,11 +322,11 @@ export const TournamentsManager = () => {
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-subtle">
-            <Button variant="outline" onClick={() => setIsModalOpen(false)}>
+            <Button variant="outline" type="button" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary">
-              Create Tournament
+            <Button type="submit" variant="primary" disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Tournament'}
             </Button>
           </div>
         </form>

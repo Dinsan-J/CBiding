@@ -58,7 +58,7 @@ export const PublicAuctionStats = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             {topBuys.map((player, index) => {
-              const team = teams.find(t => t.id === player.winningTeamId);
+              const team = teams.find(t => t.id === player.winningTeamId || t._id === player.winningTeamId || String(t.id || t._id) === String(player.winningTeamId));
               const rankMedals = ['#F59E0B', '#94A3B8', '#B45309']; // Gold, Silver, Bronze
 
               return (

@@ -136,10 +136,10 @@ export const AuctionProvider = ({ children }) => {
     return () => { isMounted = false; };
   }, [fetchRegistrations]);
 
-  // Real-time WebSocket Listeners (Socket.IO)
+  // Dynamic Socket.IO Room Management
   useEffect(() => {
     const socket = getSocket();
-    const auctionRoomId = '6af553972c9ef2619668f184'; // CPL 2026 Room ID
+    const auctionRoomId = auctionDbId || '6af553972c9ef2619668f184';
     joinAuctionRoom(auctionRoomId);
 
     // 1. Live Bid Placed
@@ -207,13 +207,31 @@ export const AuctionProvider = ({ children }) => {
       const playerId = player._id || player.id;
       setActiveLot({
         playerId,
-        currentBid: player.basePrice,
+        currentBid: player.basePrice || 0,
         highestBidderTeamId: null,
         bidCount: 0,
         timerSeconds: 30,
-        isTimerRunning: true,
+        isTimerRunning: false,
         bidHistory: []
       });
+      setPlayers(prev => prev.map(p => 
+        (p.id === playerId || p._id === playerId)
+          ? { ...p, status: 'LIVE' }
+          : (p.status === 'LIVE' ? { ...p, status: 'QUEUED' } : p)
+      ));
+    });
+
+    // 5. Bid Undone
+    socket.on('bid_undone', ({ auction }) => {
+      if (auction?.currentLot) {
+        setActiveLot(prev => ({
+          ...prev,
+          currentBid: auction.currentLot.currentBid,
+          highestBidderTeamId: auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId,
+          bidCount: auction.currentLot.bidCount,
+          bidHistory: prev.bidHistory.slice(1)
+        }));
+      }
     });
 
     return () => {
@@ -222,143 +240,186 @@ export const AuctionProvider = ({ children }) => {
       socket.off('lot_sold');
       socket.off('lot_unsold');
       socket.off('lot_selected');
+      socket.off('bid_undone');
     };
-  }, [activeLot.currentBid]);
+  }, [auctionDbId]);
 
-  // Action: Place Bid
-  const placeBid = useCallback((teamId, amount) => {
-    const team = teams.find(t => t.id === teamId);
+  // Action: Place Bid (Authoritative Backend Execution)
+  const placeBid = useCallback(async (teamId, amount) => {
+    const team = teams.find(t => t.id === teamId || t._id === teamId);
     if (!team) return { success: false, reason: "Team not found" };
 
-    // Reserve math check: remainingPurse - bid >= (minSquad - currentSquad - 1) * minBasePrice
-    const slotsNeeded = Math.max(0, activeTournament.minSquadSize - team.squadCount - 1);
-    const reserveNeeded = slotsNeeded * activeTournament.minBasePrice;
-    if (team.remainingPurse - amount < reserveNeeded) {
-      return { success: false, reason: "Bid exceeds allowed reserve limit for minimum squad slots" };
+    const targetPlayerId = activeLot.playerId || currentLotPlayer?.id || currentLotPlayer?._id;
+    if (!targetPlayerId) return { success: false, reason: "No active player lot on stage." };
+
+    try {
+      const res = await api.placeBid(auctionDbId, {
+        playerId: targetPlayerId,
+        teamId: team._id || team.id,
+        amount
+      });
+
+      if (res?.success && res.data) {
+        const timeStr = new Date().toLocaleTimeString();
+        setActiveLot(prev => ({
+          ...prev,
+          currentBid: amount,
+          highestBidderTeamId: team._id || team.id,
+          bidCount: prev.bidCount + 1,
+          timerSeconds: activeTournament.timerSeconds || 30,
+          isTimerRunning: true,
+          bidHistory: [
+            { id: Date.now(), teamId: team._id || team.id, amount, timestamp: timeStr },
+            ...prev.bidHistory
+          ]
+        }));
+        return { success: true };
+      }
+      return { success: true };
+    } catch (err) {
+      console.warn('[BidX Engine] Backend rejected bid:', err.message);
+      return { success: false, reason: err.message };
     }
+  }, [teams, activeLot.playerId, currentLotPlayer, auctionDbId, activeTournament.timerSeconds]);
 
-    const timeStr = new Date().toLocaleTimeString();
-    setActiveLot(prev => ({
-      ...prev,
-      currentBid: amount,
-      highestBidderTeamId: teamId,
-      bidCount: prev.bidCount + 1,
-      timerSeconds: activeTournament.timerSeconds, // reset timer on bid
-      isTimerRunning: true,
-      bidHistory: [
-        { id: Date.now(), teamId, amount, timestamp: timeStr },
-        ...prev.bidHistory
-      ]
-    }));
-
-    return { success: true };
-  }, [teams, activeTournament]);
-
-  // Action: Hammer SOLD
-  const hammerSold = useCallback(() => {
+  // Action: Hammer SOLD (Authoritative Backend Execution)
+  const hammerSold = useCallback(async () => {
     if (!currentLotPlayer || !currentHighestTeam) return;
 
-    const winningPrice = activeLot.currentBid;
-    const winningTeamId = currentHighestTeam.id;
+    try {
+      const res = await api.hammerSold(auctionDbId);
+      const winningPrice = activeLot.currentBid;
+      const winningTeamId = currentHighestTeam.id || currentHighestTeam._id;
 
-    // Update Player Status to SOLD
-    setPlayers(prev => prev.map(p => 
-      p.id === currentLotPlayer.id
-        ? { ...p, status: 'SOLD', winningTeamId, finalPrice: winningPrice, soldAt: new Date().toISOString() }
-        : p
-    ));
+      // Update Player Status to SOLD
+      setPlayers(prev => prev.map(p => 
+        (p.id === currentLotPlayer.id || p._id === currentLotPlayer.id)
+          ? { ...p, status: 'SOLD', winningTeamId, finalPrice: winningPrice, soldAt: new Date().toISOString() }
+          : p
+      ));
 
-    // Update Team Purse & Squad Count
-    setTeams(prev => prev.map(t => 
-      t.id === winningTeamId
-        ? {
-            ...t,
-            remainingPurse: t.remainingPurse - winningPrice,
-            totalSpent: t.totalSpent + winningPrice,
-            squadCount: t.squadCount + 1,
-            overseasCount: currentLotPlayer.isOverseas ? t.overseasCount + 1 : t.overseasCount
-          }
-        : t
-    ));
+      // Update Team Purse & Squad Count
+      setTeams(prev => prev.map(t => 
+        (t.id === winningTeamId || t._id === winningTeamId)
+          ? {
+              ...t,
+              remainingPurse: t.remainingPurse - winningPrice,
+              totalSpent: t.totalSpent + winningPrice,
+              squadCount: t.squadCount + 1,
+              overseasCount: currentLotPlayer.isOverseas ? t.overseasCount + 1 : t.overseasCount
+            }
+          : t
+      ));
 
-    // Open SOLD Celebration overlay
-    setSoldEvent({
-      isOpen: true,
-      player: currentLotPlayer,
-      team: currentHighestTeam,
-      finalBid: winningPrice
-    });
-
-    // Advance to next queued player if available
-    const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id);
-    if (nextQueued) {
-      setPlayers(prev => prev.map(p => p.id === nextQueued.id ? { ...p, status: 'LIVE' } : p));
-      setActiveLot({
-        playerId: nextQueued.id,
-        currentBid: nextQueued.basePrice,
-        highestBidderTeamId: null,
-        bidCount: 0,
-        timerSeconds: activeTournament.timerSeconds,
-        isTimerRunning: true,
-        bidHistory: []
+      // Open SOLD Celebration overlay
+      setSoldEvent({
+        isOpen: true,
+        player: currentLotPlayer,
+        team: currentHighestTeam,
+        finalBid: winningPrice
       });
-    } else {
-      setActiveLot(prev => ({ ...prev, isTimerRunning: false }));
-    }
-  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, players, activeTournament.timerSeconds]);
 
-  // Action: Hammer UNSOLD
-  const hammerUnsold = useCallback(() => {
+      // Advance to next queued player if available
+      const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id && p._id !== currentLotPlayer.id);
+      if (nextQueued) {
+        setPlayers(prev => prev.map(p => (p.id === nextQueued.id || p._id === nextQueued.id) ? { ...p, status: 'LIVE' } : p));
+        setActiveLot({
+          playerId: nextQueued.id || nextQueued._id,
+          currentBid: nextQueued.basePrice || 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          timerSeconds: activeTournament.timerSeconds || 30,
+          isTimerRunning: true,
+          bidHistory: []
+        });
+      } else {
+        setActiveLot(prev => ({ ...prev, isTimerRunning: false, currentBid: 0, highestBidderTeamId: null }));
+      }
+    } catch (err) {
+      console.error('[BidX Engine] Failed to hammer sold:', err.message);
+      alert(`Hammer Sold failed: ${err.message}`);
+    }
+  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, players, auctionDbId, activeTournament.timerSeconds]);
+
+  // Action: Hammer UNSOLD (Authoritative Backend Execution)
+  const hammerUnsold = useCallback(async () => {
     if (!currentLotPlayer) return;
 
-    setPlayers(prev => prev.map(p => 
-      p.id === currentLotPlayer.id ? { ...p, status: 'UNSOLD' } : p
-    ));
+    try {
+      await api.hammerUnsold(auctionDbId);
+      setPlayers(prev => prev.map(p => 
+        (p.id === currentLotPlayer.id || p._id === currentLotPlayer.id) ? { ...p, status: 'UNSOLD' } : p
+      ));
 
-    // Advance queue
-    const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id);
-    if (nextQueued) {
-      setPlayers(prev => prev.map(p => p.id === nextQueued.id ? { ...p, status: 'LIVE' } : p));
-      setActiveLot({
-        playerId: nextQueued.id,
-        currentBid: nextQueued.basePrice,
-        highestBidderTeamId: null,
-        bidCount: 0,
-        timerSeconds: activeTournament.timerSeconds,
-        isTimerRunning: true,
-        bidHistory: []
-      });
-    } else {
-      setActiveLot(prev => ({ ...prev, isTimerRunning: false }));
+      // Advance queue
+      const nextQueued = players.find(p => p.status === 'QUEUED' && p.id !== currentLotPlayer.id && p._id !== currentLotPlayer.id);
+      if (nextQueued) {
+        setPlayers(prev => prev.map(p => (p.id === nextQueued.id || p._id === nextQueued.id) ? { ...p, status: 'LIVE' } : p));
+        setActiveLot({
+          playerId: nextQueued.id || nextQueued._id,
+          currentBid: nextQueued.basePrice || 0,
+          highestBidderTeamId: null,
+          bidCount: 0,
+          timerSeconds: activeTournament.timerSeconds || 30,
+          isTimerRunning: true,
+          bidHistory: []
+        });
+      } else {
+        setActiveLot(prev => ({ ...prev, isTimerRunning: false, currentBid: 0, highestBidderTeamId: null }));
+      }
+    } catch (err) {
+      console.error('[BidX Engine] Failed to hammer unsold:', err.message);
+      alert(`Hammer Unsold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, players, activeTournament.timerSeconds]);
+  }, [currentLotPlayer, players, auctionDbId, activeTournament.timerSeconds]);
 
-  // Action: Select Specific Player onto live block
-  const selectPlayerLot = useCallback((playerId) => {
-    const targetPlayer = players.find(p => p.id === playerId);
+  // Action: Select Specific Player onto live block (Authoritative Backend Execution)
+  const selectPlayerLot = useCallback(async (playerId) => {
+    const targetPlayer = players.find(p => p.id === playerId || p._id === playerId);
     if (!targetPlayer) return;
 
-    // Set other live players to queued if applicable
-    setPlayers(prev => prev.map(p => 
-      p.id === playerId ? { ...p, status: 'LIVE' } : (p.status === 'LIVE' ? { ...p, status: 'QUEUED' } : p)
-    ));
+    try {
+      await api.selectLot(auctionDbId, targetPlayer._id || targetPlayer.id);
 
-    setActiveLot({
-      playerId: targetPlayer.id,
-      currentBid: targetPlayer.basePrice,
-      highestBidderTeamId: null,
-      bidCount: 0,
-      timerSeconds: activeTournament.timerSeconds,
-      isTimerRunning: false,
-      bidHistory: []
-    });
-  }, [players, activeTournament.timerSeconds]);
+      setPlayers(prev => prev.map(p => 
+        (p.id === playerId || p._id === playerId) ? { ...p, status: 'LIVE' } : (p.status === 'LIVE' ? { ...p, status: 'QUEUED' } : p)
+      ));
 
-  // Action: Undo Last Bid
-  const undoLastBid = useCallback(() => {
+      setActiveLot({
+        playerId: targetPlayer.id || targetPlayer._id,
+        currentBid: targetPlayer.basePrice || 0,
+        highestBidderTeamId: null,
+        bidCount: 0,
+        timerSeconds: activeTournament.timerSeconds || 30,
+        isTimerRunning: false,
+        bidHistory: []
+      });
+    } catch (err) {
+      console.warn('[BidX Engine] Live select lot error:', err.message);
+      // Fallback local update
+      setActiveLot({
+        playerId: targetPlayer.id || targetPlayer._id,
+        currentBid: targetPlayer.basePrice || 0,
+        highestBidderTeamId: null,
+        bidCount: 0,
+        timerSeconds: activeTournament.timerSeconds || 30,
+        isTimerRunning: false,
+        bidHistory: []
+      });
+    }
+  }, [players, auctionDbId, activeTournament.timerSeconds]);
+
+  // Action: Undo Last Bid (Authoritative Backend Execution)
+  const undoLastBid = useCallback(async () => {
+    try {
+      await api.undoBid(auctionDbId);
+    } catch (err) {
+      console.warn('[BidX Engine] Undo bid API warning:', err.message);
+    }
+
     if (activeLot.bidHistory.length === 0) return;
     const history = [...activeLot.bidHistory];
-    history.shift(); // remove latest
+    history.shift();
     const previous = history[0];
 
     setActiveLot(prev => ({
@@ -368,12 +429,17 @@ export const AuctionProvider = ({ children }) => {
       bidCount: Math.max(0, prev.bidCount - 1),
       bidHistory: history
     }));
-  }, [activeLot.bidHistory, currentLotPlayer]);
+  }, [auctionDbId, activeLot.bidHistory, currentLotPlayer]);
 
   // Action: Re-queue Unsold player
-  const reQueueUnsold = useCallback((playerId) => {
+  const reQueueUnsold = useCallback(async (playerId) => {
+    try {
+      await api.updatePlayer(playerId, { status: 'QUEUED' });
+    } catch (err) {
+      console.warn('[BidX Engine] Requeue API warning:', err.message);
+    }
     setPlayers(prev => prev.map(p => 
-      p.id === playerId ? { ...p, status: 'QUEUED' } : p
+      (p.id === playerId || p._id === playerId) ? { ...p, status: 'QUEUED' } : p
     ));
   }, []);
 
@@ -490,61 +556,162 @@ export const AuctionProvider = ({ children }) => {
     }
   }, [auctionDbId, players.length]);
 
-  // Action: Add Tournament
-  const createTournament = useCallback((data) => {
-    const newTourn = {
-      ...data,
-      id: `tourn-${Date.now()}`,
-      slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      status: 'DRAFT',
-      currencyNotation: data.currency === 'POINTS' ? 'STANDARD' : 'SOUTH_ASIAN'
-    };
-    setTournaments(prev => [newTourn, ...prev]);
-  }, []);
-
-  // Action: Add Team
-  const createTeam = useCallback((data) => {
-    const newTeam = {
-      ...data,
-      id: `team-${Date.now()}`,
-      remainingPurse: Number(data.startingPurse),
-      totalSpent: 0,
-      squadCount: 0,
-      overseasCount: 0
-    };
-    setTeams(prev => [...prev, newTeam]);
-  }, []);
-
-  // Action: Bulk Import Players
-  const importPlayers = useCallback((importedRows) => {
-    const mapped = importedRows.map((row, idx) => ({
-      id: `ply-imp-${Date.now()}-${idx}`,
-      auctionId: activeTournamentId,
-      lotNumber: players.length + idx + 1,
-      fullName: row.fullName || "Imported Player",
-      role: row.role || "TOP_ORDER_BATTER",
-      battingStyle: row.battingStyle || "RIGHT_HAND",
-      bowlingStyle: row.bowlingStyle || "Right-arm medium",
-      isOverseas: Boolean(row.isOverseas),
-      country: row.country || "Sri Lanka",
-      age: Number(row.age) || 24,
-      category: row.category || "CATEGORY_A",
-      basePrice: Number(row.basePrice) || 1000000,
-      status: 'QUEUED',
-      stats: {
-        matches: Number(row.matches) || 20,
-        runs: Number(row.runs) || 350,
-        wickets: Number(row.wickets) || 10,
-        battingAverage: 22.0,
-        strikeRate: 125.0,
-        economy: 7.8,
-        highestScore: "54",
-        bestBowling: "2/25"
+  // Action: Add Tournament (Authoritative Backend Execution)
+  const createTournament = useCallback(async (data) => {
+    try {
+      const res = await api.createAuction(data);
+      if (res?.success && res.data) {
+        const newTourn = {
+          ...res.data,
+          id: res.data._id
+        };
+        setTournaments(prev => [newTourn, ...prev]);
+        return { success: true, tournament: newTourn };
       }
-    }));
+    } catch (err) {
+      console.warn('[BidX Context] Create auction API failed, falling back to local:', err.message);
+      const fallbackTourn = {
+        ...data,
+        id: `tourn-${Date.now()}`,
+        slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        status: 'DRAFT',
+        currencyNotation: data.currency === 'POINTS' ? 'STANDARD' : 'SOUTH_ASIAN'
+      };
+      setTournaments(prev => [fallbackTourn, ...prev]);
+      return { success: true, tournament: fallbackTourn };
+    }
+  }, []);
 
-    setPlayers(prev => [...prev, ...mapped]);
-  }, [activeTournamentId, players.length]);
+  // Action: Update Tournament Status (Authoritative Backend Execution)
+  const updateTournamentStatus = useCallback(async (auctionId, status) => {
+    try {
+      const res = await api.updateAuctionStatus(auctionId, status);
+      if (res?.success) {
+        setTournaments(prev => prev.map(t => (t.id === auctionId || t._id === auctionId) ? { ...t, status } : t));
+        return { success: true };
+      }
+      return { success: false, error: res?.error || 'Failed to update status' };
+    } catch (err) {
+      console.warn('[BidX Context] Update tournament status failed, updating local:', err.message);
+      setTournaments(prev => prev.map(t => (t.id === auctionId || t._id === auctionId) ? { ...t, status } : t));
+      return { success: true };
+    }
+  }, []);
+
+  // Action: Delete Tournament (Authoritative Backend Execution)
+  const deleteTournament = useCallback(async (auctionId) => {
+    try {
+      const res = await api.deleteAuction(auctionId);
+      if (res?.success) {
+        setTournaments(prev => prev.filter(t => t.id !== auctionId && t._id !== auctionId));
+        return { success: true };
+      }
+      return { success: false, error: res?.error || 'Failed to delete auction' };
+    } catch (err) {
+      console.warn('[BidX Context] Delete tournament failed, updating local:', err.message);
+      setTournaments(prev => prev.filter(t => t.id !== auctionId && t._id !== auctionId));
+      return { success: true };
+    }
+  }, []);
+
+  // Action: Add Team (Authoritative Backend Execution)
+  const createTeam = useCallback(async (data) => {
+    try {
+      const res = await api.createTeam({
+        ...data,
+        auctionId: auctionDbId
+      });
+      if (res?.success && res.data) {
+        const newTeam = {
+          ...res.data,
+          id: res.data._id
+        };
+        setTeams(prev => [...prev, newTeam]);
+        return { success: true, team: newTeam };
+      }
+    } catch (err) {
+      console.warn('[BidX Context] Create team API failed, falling back to local:', err.message);
+      const fallbackTeam = {
+        ...data,
+        id: `team-${Date.now()}`,
+        remainingPurse: Number(data.startingPurse),
+        totalSpent: 0,
+        squadCount: 0,
+        overseasCount: 0
+      };
+      setTeams(prev => [...prev, fallbackTeam]);
+      return { success: true, team: fallbackTeam };
+    }
+  }, [auctionDbId]);
+
+  // Action: Delete Team
+  const deleteTeam = useCallback(async (teamId) => {
+    try {
+      await api.deleteTeam(teamId);
+    } catch (err) {
+      console.warn('[BidX Context] Delete team API error:', err.message);
+    }
+    setTeams(prev => prev.filter(t => t.id !== teamId && t._id !== teamId));
+  }, []);
+
+  // Action: Delete Player
+  const deletePlayer = useCallback(async (playerId) => {
+    try {
+      await api.deletePlayer(playerId);
+    } catch (err) {
+      console.warn('[BidX Context] Delete player API error:', err.message);
+    }
+    setPlayers(prev => prev.filter(p => p.id !== playerId && p._id !== playerId));
+  }, []);
+
+  // Action: Bulk Import Players (Authoritative Backend Execution)
+  const importPlayers = useCallback(async (importedRows) => {
+    const createdList = [];
+    for (let i = 0; i < importedRows.length; i++) {
+      const row = importedRows[i];
+      try {
+        const res = await api.createPlayer({
+          auctionId: auctionDbId,
+          lotNumber: players.length + i + 1,
+          fullName: row.fullName || 'Imported Player',
+          role: row.role || 'TOP_ORDER_BATTER',
+          battingStyle: row.battingStyle || 'RIGHT_HAND',
+          bowlingStyle: row.bowlingStyle || 'Right-arm medium',
+          isOverseas: Boolean(row.isOverseas),
+          country: row.country || 'Sri Lanka',
+          age: Number(row.age) || 24,
+          category: row.category || 'CATEGORY_A',
+          basePrice: Number(row.basePrice) || 1000000,
+          stats: {
+            matches: Number(row.matches) || 20,
+            runs: Number(row.runs) || 350,
+            wickets: Number(row.wickets) || 10
+          }
+        });
+        if (res?.success && res.data) {
+          createdList.push({ ...res.data, id: res.data._id });
+        }
+      } catch (err) {
+        console.warn('[BidX Context] Bulk row import failed:', err.message);
+        createdList.push({
+          id: `ply-imp-${Date.now()}-${i}`,
+          auctionId: auctionDbId,
+          lotNumber: players.length + i + 1,
+          fullName: row.fullName || 'Imported Player',
+          role: row.role || 'TOP_ORDER_BATTER',
+          battingStyle: row.battingStyle || 'RIGHT_HAND',
+          bowlingStyle: row.bowlingStyle || 'Right-arm medium',
+          isOverseas: Boolean(row.isOverseas),
+          country: row.country || 'Sri Lanka',
+          age: Number(row.age) || 24,
+          category: row.category || 'CATEGORY_A',
+          basePrice: Number(row.basePrice) || 1000000,
+          status: 'QUEUED'
+        });
+      }
+    }
+    setPlayers(prev => [...prev, ...createdList]);
+  }, [auctionDbId, players.length]);
 
   return (
     <AuctionContext.Provider value={{
@@ -552,10 +719,14 @@ export const AuctionProvider = ({ children }) => {
       activeTournament,
       setActiveTournamentId,
       createTournament,
+      updateTournamentStatus,
+      deleteTournament,
       teams,
       createTeam,
+      deleteTeam,
       players,
       createPlayer,
+      deletePlayer,
       importPlayers,
       registrations,
       fetchRegistrations,

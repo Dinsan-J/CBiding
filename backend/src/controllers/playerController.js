@@ -244,6 +244,15 @@ exports.reviewRegistration = async (req, res, next) => {
         status: 'QUEUED'
       });
 
+      await AuditLog.create({
+        tenantId: registration.tenantId,
+        actorUserId: req.user._id,
+        action: 'PLAYER_APPROVED',
+        entityType: 'Player',
+        entityId: newPlayer._id,
+        snapshotAfter: { fullName: newPlayer.fullName, lotNumber: newPlayer.lotNumber, basePrice: newPlayer.basePrice }
+      });
+
       return res.status(200).json({
         success: true,
         data: {
@@ -260,6 +269,57 @@ exports.reviewRegistration = async (req, res, next) => {
         data: registration
       });
     }
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update player details
+// @route   PUT /api/players/:id
+// @access  Private (Organiser)
+exports.updatePlayer = async (req, res, next) => {
+  try {
+    const player = await Player.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!player) {
+      return res.status(404).json({ success: false, error: 'Player not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: player
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete unauctioned player
+// @route   DELETE /api/players/:id
+// @access  Private (Organiser)
+exports.deletePlayer = async (req, res, next) => {
+  try {
+    const player = await Player.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({ success: false, error: 'Player not found' });
+    }
+
+    if (player.status === 'SOLD') {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot delete a player that has already been hammered SOLD.'
+      });
+    }
+
+    await Player.findByIdAndDelete(req.params.id);
+
+    res.status(200).json({
+      success: true,
+      message: 'Player removed from roster.'
+    });
   } catch (error) {
     next(error);
   }

@@ -61,11 +61,11 @@ export const LiveAuctionCockpit = () => {
   const unsoldPlayers = players.filter(p => p.status === 'UNSOLD');
 
   // Handle Team Tap to Bid
-  const handleTeamBid = (teamId) => {
+  const handleTeamBid = async (teamId) => {
     const nextAmount = (activeLot.currentBid || currentLotPlayer?.basePrice || 0) + selectedIncrement;
-    const res = placeBid(teamId, nextAmount);
-    if (!res.success) {
-      alert(res.reason);
+    const res = await placeBid(teamId, nextAmount);
+    if (res && !res.success) {
+      alert(res.reason || res.error || 'Bid rejected by auction engine');
     }
   };
 
@@ -335,17 +335,18 @@ export const LiveAuctionCockpit = () => {
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {teams.map((team) => {
-              const isLeading = currentHighestTeam?.id === team.id;
+              const teamKey = team.id || team._id;
+              const isLeading = (currentHighestTeam?.id === teamKey) || (currentHighestTeam?._id === teamKey);
               const nextBidAmount = activeLot.currentBid + selectedIncrement;
               const canAfford = team.remainingPurse >= nextBidAmount;
 
               return (
                 <motion.button
-                  key={team.id}
+                  key={teamKey}
                   whileHover={canAfford ? { scale: 1.02 } : {}}
                   whileTap={canAfford ? { scale: 0.97 } : {}}
                   disabled={!canAfford}
-                  onClick={() => handleTeamBid(team.id)}
+                  onClick={() => handleTeamBid(teamKey)}
                   className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     isLeading 
                       ? 'bg-brand-cyan/15 border-brand-cyan shadow-glow-cyan/30' 
@@ -498,7 +499,7 @@ export const LiveAuctionCockpit = () => {
                     <Button
                       size="xs"
                       variant="primary"
-                      onClick={() => selectPlayerLot(player.id)}
+                      onClick={() => selectPlayerLot(player.id || player._id)}
                       className="shrink-0 font-bold"
                     >
                       Call Lot
@@ -591,7 +592,7 @@ export const LiveAuctionCockpit = () => {
                       size="xs"
                       variant="outline"
                       leftIcon={RotateCcw}
-                      onClick={() => reQueueUnsold(player.id)}
+                      onClick={() => reQueueUnsold(player.id || player._id)}
                       className="shrink-0 text-[11px]"
                     >
                       Re-Queue

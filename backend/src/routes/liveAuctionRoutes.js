@@ -5,6 +5,7 @@ const {
   placeBid,
   hammerSold,
   hammerUnsold,
+  undoBid,
   getLiveAuctionState
 } = require('../controllers/liveAuctionController');
 const { protect } = require('../middlewares/auth');
@@ -17,5 +18,6 @@ router.post('/:auctionId/select-lot', protect, selectLot);
 router.post('/:auctionId/bid', protect, placeBid);
 router.post('/:auctionId/sold', protect, hammerSold);
 router.post('/:auctionId/unsold', protect, hammerUnsold);
+router.post('/:auctionId/undo-bid', protect, undoBid);
 
 module.exports = router;

@@ -9,8 +9,9 @@ import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency } from '../../utils/formatters';
 
 export const TeamsManager = () => {
-  const { teams, createTeam, activeTournament } = useAuction();
+  const { teams, createTeam, deleteTeam, activeTournament } = useAuction();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // New Team Form
   const [form, setForm] = useState({
@@ -22,21 +23,37 @@ export const TeamsManager = () => {
     ownerContact: ''
   });
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
-    createTeam({
-      ...form,
-      auctionId: activeTournament.id
-    });
-    setIsModalOpen(false);
-    setForm({
-      name: '',
-      shortName: '',
-      primaryColor: '#06B6D4',
-      startingPurse: activeTournament.startingPurse || 50000000,
-      ownerName: '',
-      ownerContact: ''
-    });
+    if (!form.name.trim() || !form.shortName.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await createTeam({
+        ...form,
+        auctionId: activeTournament.id
+      });
+      setIsModalOpen(false);
+      setForm({
+        name: '',
+        shortName: '',
+        primaryColor: '#06B6D4',
+        startingPurse: activeTournament.startingPurse || 50000000,
+        ownerName: '',
+        ownerContact: ''
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDelete = (teamId, teamName, squadCount) => {
+    if (squadCount > 0) {
+      alert(`Cannot delete ${teamName} because it already has ${squadCount} players.`);
+      return;
+    }
+    if (window.confirm(`Are you sure you want to delete ${teamName}?`)) {
+      deleteTeam(teamId);
+    }
   };
 
   return (

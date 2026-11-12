@@ -4,6 +4,7 @@ const Player = require('../models/Player');
 const Bid = require('../models/Bid');
 const PlayerAcquisition = require('../models/PlayerAcquisition');
 const AuditLog = require('../models/AuditLog');
+const WhatsAppNotificationService = require('./WhatsAppNotificationService');
 
 class AuctionEngine {
   /**
@@ -141,6 +142,15 @@ class AuctionEngine {
       placedByUserId: userId
     });
 
+    await AuditLog.create({
+      tenantId: auction.tenantId,
+      actorUserId: userId,
+      action: 'BID_PLACED',
+      entityType: 'Bid',
+      entityId: bidRecord._id,
+      snapshotAfter: { amount: proposedBid, teamId: team._id, playerId: player._id }
+    });
+
     return {
       auction: updatedAuction,
       bid: bidRecord,
@@ -207,7 +217,15 @@ class AuctionEngine {
     };
     await auction.save();
 
-    // 5. Immutably record in AuditLog
+    // 5. Trigger Transactional WhatsApp Alert (non-blocking)
+    WhatsAppNotificationService.sendAcquisitionAlert({
+      player,
+      team,
+      acquisition,
+      auction
+    }).catch(err => console.error('[AuctionEngine] WhatsApp notification non-blocking error:', err.message));
+
+    // 6. Immutably record in AuditLog
     await AuditLog.create({
       tenantId: auction.tenantId,
       actorUserId: userId,
@@ -229,6 +247,53 @@ class AuctionEngine {
       team,
       acquisition
     };
+  }
+
+  /**
+   * Undo Last Bid on active lot
+   */
+  static async undoLastBid({ auctionId, userId }) {
+    const auction = await Auction.findById(auctionId);
+    if (!auction || auction.status !== 'LIVE') throw new Error('Auction is not live.');
+
+    const { playerId } = auction.currentLot;
+    if (!playerId) throw new Error('No active lot on floor.');
+
+    const latestBid = await Bid.findOne({ auctionId, playerId }).sort({ timestamp: -1 });
+    if (!latestBid) throw new Error('No bids placed on this lot to undo.');
+
+    // Remove latest bid
+    await Bid.findByIdAndDelete(latestBid._id);
+
+    // Find previous bid
+    const previousBid = await Bid.findOne({ auctionId, playerId }).sort({ timestamp: -1 });
+
+    const player = await Player.findById(playerId);
+
+    if (previousBid) {
+      auction.currentLot.currentBid = previousBid.amount;
+      auction.currentLot.highestBidderTeamId = previousBid.teamId;
+      auction.currentLot.bidCount = Math.max(0, auction.currentLot.bidCount - 1);
+    } else {
+      auction.currentLot.currentBid = 0;
+      auction.currentLot.highestBidderTeamId = null;
+      auction.currentLot.bidCount = 0;
+    }
+
+    await auction.save();
+    await auction.populate('currentLot.highestBidderTeamId');
+
+    await AuditLog.create({
+      tenantId: auction.tenantId,
+      actorUserId: userId,
+      action: 'BID_REVERSED',
+      entityType: 'Bid',
+      entityId: latestBid._id,
+      snapshotBefore: { amount: latestBid.amount, teamId: latestBid.teamId },
+      snapshotAfter: { currentBid: auction.currentLot.currentBid }
+    });
+
+    return { auction, player, undoneBid: latestBid };
   }
 
   /**

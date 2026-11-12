@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   getPlayersByAuction,
   createPlayer,
+  updatePlayer,
+  deletePlayer,
   publicSelfRegister,
   getRegistrations,
   reviewRegistration
@@ -16,6 +18,8 @@ router.post('/register/:slug', publicSelfRegister);
 
 // Protected organiser endpoints
 router.post('/', protect, enforceTenant, createPlayer);
+router.put('/:id', protect, enforceTenant, updatePlayer);
+router.delete('/:id', protect, enforceTenant, deletePlayer);
 router.get('/registrations/:auctionId', protect, enforceTenant, getRegistrations);
 router.put('/registrations/:id/review', protect, enforceTenant, reviewRegistration);
 
