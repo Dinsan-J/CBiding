@@ -2,16 +2,23 @@ import React from 'react';
 import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Radio, Users, Shield, BarChart3, Trophy, Search } from 'lucide-react';
+import { useAuction } from '../context/AuctionContext';
 import { cn } from '../utils/cn';
 import { pageVariants } from '../utils/motion';
 
-export const PublicLayout = ({ children, tournament = { title: "Colombo Premier League 2026", slug: "cpl-2026" } }) => {
+export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
+  const { slug } = useParams();
+  const { tournaments, activeTournament } = useAuction();
+  const currentTournament = tournament || tournaments.find(t => t.slug === slug) || activeTournament;
+  const currentSlug = currentTournament?.slug || slug || 'cpl-2026';
+  const currentTitle = currentTournament?.title || 'Colombo Premier League 2026';
+
   const navLinks = [
-    { label: 'Live Auction', path: `/live/${tournament.slug}`, icon: Radio, highlight: true },
-    { label: 'All Players', path: `/live/${tournament.slug}/players`, icon: Search },
-    { label: 'Teams & Squads', path: `/live/${tournament.slug}/teams`, icon: Shield },
-    { label: 'Auction Stats', path: `/live/${tournament.slug}/stats`, icon: BarChart3 },
+    { label: 'Live Auction', path: `/live/${currentSlug}`, icon: Radio, highlight: true },
+    { label: 'All Players', path: `/live/${currentSlug}/players`, icon: Search },
+    { label: 'Teams & Squads', path: `/live/${currentSlug}/teams`, icon: Shield },
+    { label: 'Auction Stats', path: `/live/${currentSlug}/stats`, icon: BarChart3 },
   ];
 
   return (
@@ -22,14 +29,14 @@ export const PublicLayout = ({ children, tournament = { title: "Colombo Premier 
           <div className="flex items-center justify-between h-16">
             {/* Branding / Logo */}
             <div className="flex items-center gap-4">
-              <Link to={`/live/${tournament.slug}`} className="flex items-center gap-2.5 group">
+              <Link to={`/live/${currentSlug}`} className="flex items-center gap-2.5 group">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-lg shadow-glow-cyan">
                   C
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-extrabold text-base tracking-tight text-white group-hover:text-brand-cyan transition-colors">
-                      {tournament.title}
+                      {currentTitle}
                     </span>
                     <span className="flex items-center gap-1 bg-red-500/10 text-red-400 border border-red-500/30 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
                       <span className="w-1.5 h-1.5 rounded-full bg-brand-crimson animate-ping" />
@@ -65,7 +72,7 @@ export const PublicLayout = ({ children, tournament = { title: "Colombo Premier 
             {/* Quick Actions / Portal Link */}
             <div className="flex items-center gap-3">
               <Link
-                to={`/register/${tournament.slug}`}
+                to={`/register/${currentSlug}`}
                 className="hidden sm:inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-accent hover:bg-surface-hover text-slate-200 border border-border-subtle transition-colors"
               >
                 <Users className="w-3.5 h-3.5 text-brand-cyan" />
