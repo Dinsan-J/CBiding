@@ -170,24 +170,29 @@ exports.addFixedPlayer = async (req, res, next) => {
       });
     }
 
-    const price = Number(retentionPrice) || Number(basePrice) || 0;
+    // Base/Fixed players can have 0 base price and 0 retention cost (Free squad allocation)
+    const price = (retentionPrice !== undefined && retentionPrice !== null && retentionPrice !== '') 
+      ? Math.max(0, Number(retentionPrice)) 
+      : 0;
 
-    // 2. Check remaining purse affordability
-    if (price > team.remainingPurse) {
+    // 2. Check remaining purse affordability (if price > 0)
+    if (price > 0 && price > team.remainingPurse) {
       return res.status(400).json({
         success: false,
         error: `Retention cost (${price.toLocaleString()}) exceeds team remaining purse (${team.remainingPurse.toLocaleString()}).`
       });
     }
 
-    // 3. Squad completion reserve protection
-    const slotsRemainingAfter = Math.max(0, auction.minSquadSize - (team.squadCount + 1));
-    const requiredReserve = slotsRemainingAfter * (auction.minBasePrice || 50000);
-    if (team.remainingPurse - price < requiredReserve) {
-      return res.status(400).json({
-        success: false,
-        error: `Retention fee violates squad reserve protection. Must preserve at least ${requiredReserve.toLocaleString()} for remaining ${slotsRemainingAfter} squad spots.`
-      });
+    // 3. Squad completion reserve protection (if price > 0)
+    if (price > 0) {
+      const slotsRemainingAfter = Math.max(0, auction.minSquadSize - (team.squadCount + 1));
+      const requiredReserve = slotsRemainingAfter * (auction.minBasePrice || 50000);
+      if (team.remainingPurse - price < requiredReserve) {
+        return res.status(400).json({
+          success: false,
+          error: `Retention fee violates squad reserve protection. Must preserve at least ${requiredReserve.toLocaleString()} for remaining ${slotsRemainingAfter} squad spots.`
+        });
+      }
     }
 
     let targetPlayer;
@@ -228,6 +233,10 @@ exports.addFixedPlayer = async (req, res, next) => {
       }
 
       const count = await Player.countDocuments({ auctionId: team.auctionId });
+      const playerBase = (basePrice !== undefined && basePrice !== null && basePrice !== '') 
+        ? Math.max(0, Number(basePrice)) 
+        : 0;
+
       targetPlayer = await Player.create({
         tenantId: team.tenantId,
         auctionId: team.auctionId,
@@ -240,7 +249,7 @@ exports.addFixedPlayer = async (req, res, next) => {
         isOverseas: Boolean(isOverseas),
         country: isOverseas ? (country || 'Overseas') : (country || 'Sri Lanka'),
         category,
-        basePrice: Number(basePrice) || price || (auction.minBasePrice || 50000),
+        basePrice: playerBase,
         status: 'SOLD',
         isFixedPlayer: true,
         retentionType: 'FIXED_RETENTION',
@@ -252,8 +261,10 @@ exports.addFixedPlayer = async (req, res, next) => {
     }
 
     // Update Team Ledger
-    team.totalSpent = (team.totalSpent || 0) + price;
-    team.remainingPurse = Math.max(0, team.remainingPurse - price);
+    if (price > 0) {
+      team.totalSpent = (team.totalSpent || 0) + price;
+      team.remainingPurse = Math.max(0, team.remainingPurse - price);
+    }
     team.squadCount = (team.squadCount || 0) + 1;
     if (targetPlayer.isOverseas) {
       team.overseasCount = (team.overseasCount || 0) + 1;

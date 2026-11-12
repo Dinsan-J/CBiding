@@ -47,11 +47,12 @@ export const TeamsManager = () => {
   const [isAssigning, setIsAssigning] = useState(false);
 
   // Mode 1: Select from Roster
-  const [playerSearchQuery, setPlayerSearchQuery] = useState('');
   const [selectedRosterPlayerId, setSelectedRosterPlayerId] = useState('');
-  const [rosterRetentionFee, setRosterRetentionFee] = useState(1000000);
+  const [isFreeBasePlayer, setIsFreeBasePlayer] = useState(true); // Default: Base player has NO base price
+  const [rosterRetentionFee, setRosterRetentionFee] = useState(0);
 
   // Mode 2: Direct Registration
+  const [isDirectFreeBasePlayer, setIsDirectFreeBasePlayer] = useState(true);
   const [directForm, setDirectForm] = useState({
     fullName: '',
     role: 'TOP_ORDER_BATTER',
@@ -60,8 +61,8 @@ export const TeamsManager = () => {
     isOverseas: false,
     country: 'Sri Lanka',
     category: 'CATEGORY_A',
-    basePrice: 1500000,
-    retentionPrice: 1500000,
+    basePrice: 0,
+    retentionPrice: 0,
     photoUrl: ''
   });
 
@@ -120,7 +121,9 @@ export const TeamsManager = () => {
     setSelectedTeam(team);
     setFixedTab('ROSTER');
     setSelectedRosterPlayerId('');
-    setRosterRetentionFee(1000000);
+    setIsFreeBasePlayer(true); // Default: Base player has no base price / 0 cost
+    setRosterRetentionFee(0);
+    setIsDirectFreeBasePlayer(true);
     setDirectForm({
       fullName: '',
       role: 'TOP_ORDER_BATTER',
@@ -129,8 +132,8 @@ export const TeamsManager = () => {
       isOverseas: false,
       country: 'Sri Lanka',
       category: 'CATEGORY_A',
-      basePrice: 1500000,
-      retentionPrice: 1500000,
+      basePrice: 0,
+      retentionPrice: 0,
       photoUrl: ''
     });
     setIsFixedModalOpen(true);
@@ -144,17 +147,6 @@ export const TeamsManager = () => {
       return !isSold && !hasTeam;
     });
   }, [players]);
-
-  // Filtered available players by search
-  const filteredAvailablePlayers = useMemo(() => {
-    if (!playerSearchQuery.trim()) return availableRosterPlayers;
-    const q = playerSearchQuery.toLowerCase();
-    return availableRosterPlayers.filter(p => 
-      p.fullName.toLowerCase().includes(q) || 
-      p.role.toLowerCase().includes(q) ||
-      (p.country && p.country.toLowerCase().includes(q))
-    );
-  }, [availableRosterPlayers, playerSearchQuery]);
 
   const selectedRosterPlayer = useMemo(() => {
     return players.find(p => p.id === selectedRosterPlayerId || p._id === selectedRosterPlayerId);
@@ -176,7 +168,7 @@ export const TeamsManager = () => {
         }
         res = await assignFixedPlayer(teamId, {
           playerId: selectedRosterPlayerId,
-          retentionPrice: Number(rosterRetentionFee)
+          retentionPrice: isFreeBasePlayer ? 0 : Number(rosterRetentionFee || 0)
         });
       } else {
         if (!directForm.fullName.trim()) {
@@ -185,7 +177,8 @@ export const TeamsManager = () => {
         }
         res = await assignFixedPlayer(teamId, {
           ...directForm,
-          retentionPrice: Number(directForm.retentionPrice || directForm.basePrice)
+          basePrice: isDirectFreeBasePlayer ? 0 : Number(directForm.basePrice || 0),
+          retentionPrice: isDirectFreeBasePlayer ? 0 : Number(directForm.retentionPrice || 0)
         });
       }
 
@@ -223,7 +216,7 @@ export const TeamsManager = () => {
             Franchises & Fixed Player Allocations
           </h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Manage participating cricket teams, configure pre-auction retained/fixed players, and track salary caps.
+            Manage participating cricket teams, configure pre-auction retained/fixed base players, and track salary caps.
           </p>
         </div>
 
@@ -319,6 +312,7 @@ export const TeamsManager = () => {
                       <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
                         {acquiredPlayers.map(p => {
                           const pId = p.id || p._id;
+                          const isNoPrice = p.isFixedPlayer && (!p.finalPrice || p.finalPrice === 0);
                           return (
                             <div 
                               key={pId} 
@@ -335,7 +329,13 @@ export const TeamsManager = () => {
                                   )}
                                 </div>
                                 <div className="text-[10px] text-slate-400">
-                                  {getRoleLabel(p.role)} • <strong className="text-brand-emerald font-mono">{formatCurrency(p.finalPrice || p.basePrice, activeTournament?.currency)}</strong>
+                                  {getRoleLabel(p.role)} • {
+                                    isNoPrice ? (
+                                      <strong className="text-amber-400 font-mono">No Base Price (Fixed)</strong>
+                                    ) : (
+                                      <strong className="text-brand-emerald font-mono">{formatCurrency(p.finalPrice || p.basePrice, activeTournament?.currency)}</strong>
+                                    )
+                                  }
                                 </div>
                               </div>
                               {p.isFixedPlayer && (
@@ -541,10 +541,6 @@ export const TeamsManager = () => {
                       onChange={(e) => {
                         const pId = e.target.value;
                         setSelectedRosterPlayerId(pId);
-                        const found = players.find(p => p.id === pId || p._id === pId);
-                        if (found) {
-                          setRosterRetentionFee(found.basePrice || 1000000);
-                        }
                       }}
                       className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-sm text-slate-100 cursor-pointer"
                       required
@@ -552,7 +548,7 @@ export const TeamsManager = () => {
                       <option value="">-- Choose a player to fix to {selectedTeam.shortName} --</option>
                       {availableRosterPlayers.map(p => (
                         <option key={p.id || p._id} value={p.id || p._id}>
-                          {p.fullName} ({getRoleLabel(p.role)} - Base: {formatCurrency(p.basePrice, activeTournament?.currency)})
+                          {p.fullName} ({getRoleLabel(p.role)}{p.isOverseas ? ' • Overseas' : ''})
                         </option>
                       ))}
                     </select>
@@ -573,15 +569,66 @@ export const TeamsManager = () => {
                   </div>
                 )}
 
-                <Input
-                  label="Retention Contract Fee / Salary (LKR) *"
-                  type="number"
-                  required
-                  min={0}
-                  value={rosterRetentionFee}
-                  onChange={(e) => setRosterRetentionFee(Number(e.target.value))}
-                  helperText="Deducted directly from the franchise remaining purse"
-                />
+                {/* Base Player Pricing Selector */}
+                <div className="p-3.5 bg-surface-card rounded-xl border border-border-subtle space-y-3">
+                  <span className="text-xs font-semibold text-slate-300 block">
+                    Base Player Pricing Option
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label 
+                      className={`p-3 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        isFreeBasePlayer 
+                          ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' 
+                          : 'bg-surface-accent border-border-subtle'
+                      }`}
+                      onClick={() => setIsFreeBasePlayer(true)}
+                    >
+                      <input 
+                        type="radio" 
+                        name="feeOption" 
+                        checked={isFreeBasePlayer} 
+                        onChange={() => setIsFreeBasePlayer(true)}
+                        className="mt-0.5 text-amber-500 cursor-pointer" 
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">No Base Price (Free)</span>
+                        <span className="text-[10px] text-slate-400">0 LKR — Fixed player without base price</span>
+                      </div>
+                    </label>
+
+                    <label 
+                      className={`p-3 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        !isFreeBasePlayer 
+                          ? 'bg-brand-cyan/10 border-brand-cyan shadow-sm' 
+                          : 'bg-surface-accent border-border-subtle'
+                      }`}
+                      onClick={() => setIsFreeBasePlayer(false)}
+                    >
+                      <input 
+                        type="radio" 
+                        name="feeOption" 
+                        checked={!isFreeBasePlayer} 
+                        onChange={() => setIsFreeBasePlayer(false)}
+                        className="mt-0.5 text-brand-cyan cursor-pointer" 
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">Custom Retention Fee</span>
+                        <span className="text-[10px] text-slate-400">Optional contract fee from purse</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {!isFreeBasePlayer && (
+                    <Input
+                      label="Custom Contract Fee (LKR)"
+                      type="number"
+                      min={0}
+                      value={rosterRetentionFee}
+                      onChange={(e) => setRosterRetentionFee(Number(e.target.value))}
+                      helperText="Deducted directly from franchise purse"
+                    />
+                  )}
+                </div>
               </div>
             )}
 
@@ -634,38 +681,81 @@ export const TeamsManager = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Contract / Retention Fee (LKR) *"
-                    type="number"
-                    required
-                    min={0}
-                    value={directForm.retentionPrice}
-                    onChange={(e) => setDirectForm({ 
-                      ...directForm, 
-                      retentionPrice: Number(e.target.value),
-                      basePrice: Number(e.target.value) 
-                    })}
-                  />
-
-                  <Input
-                    label="Country"
-                    value={directForm.country}
-                    onChange={(e) => setDirectForm({ ...directForm, country: e.target.value })}
-                  />
-                </div>
-
                 <div className="flex items-center gap-2 pt-1">
                   <input
                     type="checkbox"
                     id="directOverseas"
                     checked={directForm.isOverseas}
                     onChange={(e) => setDirectForm({ ...directForm, isOverseas: e.target.checked })}
-                    className="w-4 h-4 rounded bg-surface-card border-border-subtle text-brand-cyan"
+                    className="w-4 h-4 rounded bg-surface-card border-border-subtle text-brand-cyan cursor-pointer"
                   />
                   <label htmlFor="directOverseas" className="text-xs text-slate-300 cursor-pointer">
                     Player is Overseas (Counts toward overseas quota limit)
                   </label>
+                </div>
+
+                {/* Direct Base Player Pricing Option */}
+                <div className="p-3.5 bg-surface-card rounded-xl border border-border-subtle space-y-3">
+                  <span className="text-xs font-semibold text-slate-300 block">
+                    Base Player Pricing Option
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label 
+                      className={`p-3 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        isDirectFreeBasePlayer 
+                          ? 'bg-amber-500/10 border-amber-500/50 shadow-sm' 
+                          : 'bg-surface-accent border-border-subtle'
+                      }`}
+                      onClick={() => setIsDirectFreeBasePlayer(true)}
+                    >
+                      <input 
+                        type="radio" 
+                        name="directFeeOption" 
+                        checked={isDirectFreeBasePlayer} 
+                        onChange={() => setIsDirectFreeBasePlayer(true)}
+                        className="mt-0.5 text-amber-500 cursor-pointer" 
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">No Base Price (Free)</span>
+                        <span className="text-[10px] text-slate-400">0 LKR — Fixed player without base price</span>
+                      </div>
+                    </label>
+
+                    <label 
+                      className={`p-3 rounded-lg border cursor-pointer flex items-start gap-2.5 transition-colors ${
+                        !isDirectFreeBasePlayer 
+                          ? 'bg-brand-cyan/10 border-brand-cyan shadow-sm' 
+                          : 'bg-surface-accent border-border-subtle'
+                      }`}
+                      onClick={() => setIsDirectFreeBasePlayer(false)}
+                    >
+                      <input 
+                        type="radio" 
+                        name="directFeeOption" 
+                        checked={!isDirectFreeBasePlayer} 
+                        onChange={() => setIsDirectFreeBasePlayer(false)}
+                        className="mt-0.5 text-brand-cyan cursor-pointer" 
+                      />
+                      <div>
+                        <span className="text-xs font-bold text-white block">Custom Contract Price</span>
+                        <span className="text-[10px] text-slate-400">Optional contract fee from purse</span>
+                      </div>
+                    </label>
+                  </div>
+
+                  {!isDirectFreeBasePlayer && (
+                    <Input
+                      label="Custom Contract Fee (LKR)"
+                      type="number"
+                      min={0}
+                      value={directForm.retentionPrice}
+                      onChange={(e) => setDirectForm({ 
+                        ...directForm, 
+                        retentionPrice: Number(e.target.value),
+                        basePrice: Number(e.target.value) 
+                      })}
+                    />
+                  )}
                 </div>
 
                 <Input

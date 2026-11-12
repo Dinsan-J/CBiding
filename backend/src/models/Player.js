@@ -69,7 +69,7 @@ const playerSchema = new mongoose.Schema(
       enum: ['MARQUEE', 'CATEGORY_A', 'CATEGORY_B', 'CATEGORY_C', 'EMERGING'], 
       default: 'CATEGORY_A' 
     },
-    basePrice: { type: Number, required: true },
+    basePrice: { type: Number, default: 0 },
 
     // Lifecycle Status
     status: { 
