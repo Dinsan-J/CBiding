@@ -114,7 +114,7 @@ export const OrganiserOverview = () => {
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] font-mono font-bold uppercase text-slate-400">
-                      {tourn.type} AUCTION ({tourn.currency})
+                      {tourn.type === 'POINTS' ? 'POINTS AUCTION' : `MONEY AUCTION (${tourn.currency})`}
                     </span>
                     {isLive ? (
                       <Badge variant="emerald" dot className="animate-pulse">LIVE NOW</Badge>

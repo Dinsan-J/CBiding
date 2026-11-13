@@ -5,6 +5,7 @@ import { useAuction } from '../../context/AuctionContext';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
+import { TeamMark } from '../../components/ui/TeamMark';
 import { accordionVariants } from '../../utils/motion';
 
 export const PublicTeamsExplorer = () => {
@@ -46,12 +47,7 @@ export const PublicTeamsExplorer = () => {
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                 {/* Team Identity */}
                 <div className="flex items-center gap-4">
-                  <div
-                    className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl shrink-0"
-                    style={{ backgroundColor: team.primaryColor || '#06B6D4' }}
-                  >
-                    {team.shortName}
-                  </div>
+                  <TeamMark team={team} className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl shrink-0" />
                   <div>
                     <h3 className="text-xl font-bold text-white">{team.name}</h3>
                     <p className="text-xs text-slate-400 mt-0.5">Owner: {team.ownerName}</p>

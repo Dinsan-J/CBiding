@@ -76,16 +76,18 @@ exports.createAuction = async (req, res, next) => {
       .replace(/[^a-z0-9]/g, '-')
       .replace(/-+/g, '-');
 
+    const isPoints = type === 'POINTS';
     const auction = await Auction.create({
       tenantId,
       title,
       slug: `${generatedSlug}-${Date.now().toString().slice(-4)}`,
       type: type || 'MONEY',
-      currency: currency || 'LKR',
-      startingPurse: startingPurse || 50000000,
+      currency: isPoints ? 'POINTS' : (currency || 'LKR'),
+      currencyNotation: isPoints ? 'STANDARD' : undefined,
+      startingPurse: startingPurse || (isPoints ? 100000 : 50000000),
       minSquadSize: minSquadSize || 15,
       maxSquadSize: maxSquadSize || 20,
-      minBasePrice: minBasePrice || 50000,
+      minBasePrice: minBasePrice || (isPoints ? 100 : 50000),
       timerSeconds: timerSeconds || 30,
       bidIncrements: bidIncrements || [
         { from: 0, to: 1000000, increment: 100000 },
@@ -119,7 +121,16 @@ exports.updateAuction = async (req, res, next) => {
       });
     }
 
-    const updated = await Auction.findByIdAndUpdate(auction._id, req.body, {
+    const updates = { ...req.body };
+    delete updates._id;
+    delete updates.tenantId;
+    if (updates.type === 'POINTS') {
+      updates.currency = 'POINTS';
+      updates.currencyNotation = 'STANDARD';
+    } else if (updates.type === 'MONEY' && updates.currency === 'POINTS') {
+      updates.currency = 'LKR';
+    }
+    const updated = await Auction.findByIdAndUpdate(auction._id, updates, {
       new: true,
       runValidators: true
     });

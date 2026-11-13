@@ -10,7 +10,7 @@ export function formatCurrency(amount, currency = 'LKR', notation = 'SOUTH_ASIAN
   if (amount === undefined || amount === null || isNaN(amount)) return '0';
   
   if (currency === 'POINTS') {
-    return `${amount.toLocaleString()} Pts`;
+    return `${amount.toLocaleString()} points`;
   }
 
   const prefix = currency === 'LKR' ? 'LKR ' : `${currency} `;
@@ -43,7 +43,7 @@ export function formatCurrency(amount, currency = 'LKR', notation = 'SOUTH_ASIAN
  */
 export function formatExactCurrency(amount, currency = 'LKR') {
   if (amount === undefined || amount === null || isNaN(amount)) return '0';
-  if (currency === 'POINTS') return `${amount.toLocaleString()} Pts`;
+  if (currency === 'POINTS') return `${amount.toLocaleString()} points`;
   return `${currency} ${amount.toLocaleString()}`;
 }
 

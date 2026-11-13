@@ -15,6 +15,7 @@ const auctionRoutes = require('./routes/auctionRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const playerRoutes = require('./routes/playerRoutes');
 const liveAuctionRoutes = require('./routes/liveAuctionRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
 
 // Socket handler
 const setupAuctionSockets = require('./sockets/auctionSocket');
@@ -81,6 +82,7 @@ app.use('/api/auctions', auctionRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/players', playerRoutes);
 app.use('/api/live', liveAuctionRoutes);
+app.use('/api/uploads', uploadRoutes);
 
 // Global Error Handler
 app.use(errorHandler);

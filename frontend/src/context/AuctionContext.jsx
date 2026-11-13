@@ -1,13 +1,18 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { getSocket, joinAuctionRoom, leaveAuctionRoom } from '../services/socket';
 
 const AuctionContext = createContext(null);
+const normalizeAuction = auction => ({
+  ...auction,
+  id: auction._id || auction.id,
+  currency: auction.type === 'POINTS' ? 'POINTS' : (auction.currency || 'LKR')
+});
 
 export const AuctionProvider = ({ children }) => {
   // Tournaments State
   const [tournaments, setTournaments] = useState([]);
-  const [activeTournamentId, setActiveTournamentId] = useState(null);
+  const [activeTournamentId, setActiveTournamentIdState] = useState(null);
   const [auctionDbId, setAuctionDbId] = useState(null);
 
   // Loading state for live backend data (prevents flashing mock data on refresh)
@@ -17,6 +22,8 @@ export const AuctionProvider = ({ children }) => {
   const [teams, setTeams] = useState([]);
   const [players, setPlayers] = useState([]);
   const [registrations, setRegistrations] = useState([]);
+  const auctionIdRef = useRef(auctionDbId);
+  useEffect(() => { auctionIdRef.current = auctionDbId; }, [auctionDbId]);
 
   // Active Live Lot Engine State
   const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0] || {};
@@ -81,7 +88,7 @@ export const AuctionProvider = ({ children }) => {
 
   // Fetch Registrations from Backend
   const fetchRegistrations = useCallback(async (targetAuctionId) => {
-    const id = targetAuctionId || auctionDbId;
+    const id = targetAuctionId || auctionIdRef.current;
     if (!id) return;
     try {
       const res = await api.getRegistrations(id);
@@ -97,7 +104,46 @@ export const AuctionProvider = ({ children }) => {
     } catch (err) {
       console.warn('[BidX Context] Could not fetch registrations from server:', err.message);
     }
-  }, [auctionDbId]);
+  }, []);
+
+  const setActiveTournamentId = useCallback(async (id) => {
+    if (!id) return;
+    setActiveTournamentIdState(id);
+    setAuctionDbId(id);
+    setTeams([]);
+    setPlayers([]);
+    setRegistrations([]);
+    setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
+    setIsLiveLoading(true);
+    try {
+      const result = await api.getLiveState(id);
+      if (!result?.success || !result.data?.auction) throw new Error(result?.error || 'Could not load the selected auction.');
+      const { auction, teams: loadedTeams = [], queuedPlayers = [], soldPlayers = [], unsoldPlayers = [] } = result.data;
+      setTournaments(prev => prev.map(t => String(t._id || t.id) === String(id) ? { ...t, ...normalizeAuction(auction) } : t));
+      setTeams(loadedTeams.map(team => ({ ...team, id: team._id })));
+      const uniquePlayers = new Map();
+      [...queuedPlayers, ...soldPlayers, ...unsoldPlayers].forEach(player => uniquePlayers.set(String(player._id), { ...player, id: player._id }));
+      const activePlayer = auction.currentLot?.playerId;
+      if (activePlayer?._id) uniquePlayers.set(String(activePlayer._id), { ...activePlayer, id: activePlayer._id });
+      setPlayers([...uniquePlayers.values()]);
+      const highestTeam = auction.currentLot?.highestBidderTeamId;
+      setActiveLot({
+        playerId: activePlayer?._id || activePlayer || null,
+        currentBid: auction.currentLot?.currentBid || activePlayer?.basePrice || 0,
+        highestBidderTeamId: highestTeam?._id || highestTeam || null,
+        bidCount: auction.currentLot?.bidCount || 0,
+        timerSeconds: auction.timerSeconds || 30,
+        isTimerRunning: Boolean(auction.currentLot?.isTimerRunning),
+        bidHistory: []
+      });
+      await fetchRegistrations(id);
+    } catch (error) {
+      console.error('[BidX Context] Could not activate tournament:', error.message);
+      throw error;
+    } finally {
+      setIsLiveLoading(false);
+    }
+  }, [fetchRegistrations]);
 
   // Live Backend Data Synchronization
   useEffect(() => {
@@ -111,16 +157,29 @@ export const AuctionProvider = ({ children }) => {
 
     const fetchLiveData = async () => {
       try {
-        const res = await api.getPublicBroadcast('cpl-2026');
+        let res;
+        try {
+          const privateAuctions = await api.getAuctions();
+          if (privateAuctions?.data?.length) {
+            const list = privateAuctions.data.map(normalizeAuction);
+            setTournaments(list);
+            await setActiveTournamentId(list[0]._id);
+            return;
+          }
+        } catch {
+          // Public viewers have no organiser session; load the configured public auction below.
+        }
+        const publicSlug = import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
+        res = await api.getPublicBroadcast(publicSlug);
         if (isMounted && res?.success && res.data) {
           const { auction, teams: liveTeams, players: livePlayers } = res.data;
           if (auction?._id) {
             setAuctionDbId(auction._id);
           }
           if (auction) {
-            const tournament = { ...auction, id: auction._id };
+            const tournament = normalizeAuction(auction);
             setTournaments([tournament]);
-            setActiveTournamentId(auction._id);
+            setActiveTournamentIdState(auction._id);
           }
           if (Array.isArray(liveTeams)) {
             setTeams(liveTeams.map(t => ({
@@ -200,11 +259,13 @@ export const AuctionProvider = ({ children }) => {
       }
     };
     fetchLiveData();
+    window.addEventListener('bidx:auth-changed', fetchLiveData);
     return () => {
       isMounted = false;
       clearTimeout(skeletonTimeout);
+      window.removeEventListener('bidx:auth-changed', fetchLiveData);
     };
-  }, [fetchRegistrations]);
+  }, [fetchRegistrations, setActiveTournamentId]);
 
   // Dynamic Socket.IO Room Management
   useEffect(() => {
@@ -997,53 +1058,19 @@ export const AuctionProvider = ({ children }) => {
   }, []);
 
   // Action: Bulk Import Players (Authoritative Backend Execution)
-  const importPlayers = useCallback(async (importedRows) => {
-    const createdList = [];
-    for (let i = 0; i < importedRows.length; i++) {
-      const row = importedRows[i];
-      try {
-        const res = await api.createPlayer({
-          auctionId: auctionDbId,
-          lotNumber: players.length + i + 1,
-          fullName: row.fullName || 'Imported Player',
-          role: row.role || 'TOP_ORDER_BATTER',
-          battingStyle: row.battingStyle || 'RIGHT_HAND',
-          bowlingStyle: row.bowlingStyle || 'Right-arm medium',
-          isOverseas: Boolean(row.isOverseas),
-          country: row.country || 'Sri Lanka',
-          age: Number(row.age) || 24,
-          category: row.category || 'CATEGORY_A',
-          basePrice: Number(row.basePrice) || 1000000,
-          stats: {
-            matches: Number(row.matches) || 20,
-            runs: Number(row.runs) || 350,
-            wickets: Number(row.wickets) || 10
-          }
-        });
-        if (res?.success && res.data) {
-          createdList.push({ ...res.data, id: res.data._id });
-        }
-      } catch (err) {
-        console.warn('[BidX Context] Bulk row import failed:', err.message);
-        createdList.push({
-          id: `ply-imp-${Date.now()}-${i}`,
-          auctionId: auctionDbId,
-          lotNumber: players.length + i + 1,
-          fullName: row.fullName || 'Imported Player',
-          role: row.role || 'TOP_ORDER_BATTER',
-          battingStyle: row.battingStyle || 'RIGHT_HAND',
-          bowlingStyle: row.bowlingStyle || 'Right-arm medium',
-          isOverseas: Boolean(row.isOverseas),
-          country: row.country || 'Sri Lanka',
-          age: Number(row.age) || 24,
-          category: row.category || 'CATEGORY_A',
-          basePrice: Number(row.basePrice) || 1000000,
-          status: 'QUEUED'
-        });
+  const importPlayers = useCallback(async (file) => {
+    if (!auctionDbId) return { success: false, error: 'Select an auction before importing players.' };
+    try {
+      const result = await api.importPlayers(file, auctionDbId);
+      if (result?.success && result.data?.players) {
+        const imported = result.data.players.map(player => ({ ...player, id: player._id }));
+        setPlayers(prev => [...prev, ...imported]);
       }
+      return result;
+    } catch (error) {
+      return { success: false, error: error.message };
     }
-    setPlayers(prev => [...prev, ...createdList]);
-  }, [auctionDbId, players.length]);
+  }, [auctionDbId]);
 
   return (
     <AuctionContext.Provider value={{

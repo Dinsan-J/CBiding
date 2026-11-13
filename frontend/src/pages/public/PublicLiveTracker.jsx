@@ -17,6 +17,7 @@ import { Card } from '../../components/ui/Card';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { NumberTicker } from '../../components/ui/NumberTicker';
+import { TeamMark } from '../../components/ui/TeamMark';
 import { SoldCelebration } from '../../components/ui/SoldCelebration';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { Link } from 'react-router-dom';
@@ -208,7 +209,7 @@ export const PublicLiveTracker = () => {
 
                 <div className="my-2">
                   <div className="text-4xl sm:text-5xl font-mono font-black text-brand-emerald text-glow-emerald">
-                    <NumberTicker value={activeLot.currentBid} prefix={`${activeTournament.currency} `} />
+                    <NumberTicker value={activeLot.currentBid} prefix={activeTournament.type === 'POINTS' ? '' : `${activeTournament.currency} `} />
                   </div>
                   <span className="text-xs text-slate-400 mt-1 block">
                     {formatCurrency(activeLot.currentBid, activeTournament.currency, 'SOUTH_ASIAN')}
@@ -228,12 +229,7 @@ export const PublicLiveTracker = () => {
 
                 {currentHighestTeam ? (
                   <div className="flex items-center gap-3.5 my-2">
-                    <div 
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-xl shrink-0"
-                      style={{ backgroundColor: currentHighestTeam.primaryColor || '#06B6D4' }}
-                    >
-                      {currentHighestTeam.shortName}
-                    </div>
+                    <TeamMark team={currentHighestTeam} className="w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-xl shrink-0" />
                     <div>
                       <h4 className="text-xl font-extrabold text-white leading-tight">
                         {currentHighestTeam.name}
@@ -317,12 +313,7 @@ export const PublicLiveTracker = () => {
                 <div className="mt-3 pt-2.5 border-t border-border-subtle flex items-center justify-between text-xs">
                   <span className="text-slate-400">Franchise:</span>
                   <span className="font-semibold text-white flex items-center gap-1.5">
-                    <span 
-                      className="w-4 h-4 rounded text-[9px] font-bold text-white flex items-center justify-center"
-                      style={{ backgroundColor: team?.primaryColor || '#06B6D4' }}
-                    >
-                      {team?.shortName || 'TM'}
-                    </span>
+                    <TeamMark team={team} className="w-4 h-4 rounded text-[9px] font-bold text-white flex items-center justify-center" />
                     {team?.name || 'Franchise'}
                   </span>
                 </div>

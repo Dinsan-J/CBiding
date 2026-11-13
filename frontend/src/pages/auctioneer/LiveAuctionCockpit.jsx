@@ -25,6 +25,7 @@ import { Skeleton } from '../../components/ui/Skeleton';
 import { Modal } from '../../components/ui/Modal';
 import { CountdownTimer } from '../../components/ui/CountdownTimer';
 import { NumberTicker } from '../../components/ui/NumberTicker';
+import { TeamMark } from '../../components/ui/TeamMark';
 import { SoldCelebration } from '../../components/ui/SoldCelebration';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { lotEntranceVariants, tabContentVariants } from '../../utils/motion';
@@ -344,7 +345,7 @@ export const LiveAuctionCockpit = () => {
 
             <div className="my-3">
               <div className="text-4xl sm:text-5xl font-mono font-black text-brand-emerald text-glow-emerald leading-tight">
-                <NumberTicker value={activeLot.currentBid} prefix={`${activeTournament.currency} `} />
+                <NumberTicker value={activeLot.currentBid} prefix={activeTournament.type === 'POINTS' ? '' : `${activeTournament.currency} `} />
               </div>
               <p className="text-xs text-slate-400 mt-1">
                 South Asian: <span className="text-slate-200 font-semibold">{formatCurrency(activeLot.currentBid, activeTournament.currency, 'SOUTH_ASIAN')}</span>
@@ -385,12 +386,7 @@ export const LiveAuctionCockpit = () => {
 
             {currentHighestTeam ? (
               <div className="flex items-center gap-4 my-3">
-                <div 
-                  className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl shrink-0"
-                  style={{ backgroundColor: currentHighestTeam.primaryColor || '#06B6D4' }}
-                >
-                  {currentHighestTeam.shortName}
-                </div>
+                <TeamMark team={currentHighestTeam} className="w-16 h-16 rounded-2xl flex items-center justify-center font-black text-2xl text-white shadow-xl shrink-0" />
                 <div>
                   <h3 className="text-xl font-extrabold text-white leading-tight">
                     {currentHighestTeam.name}
@@ -464,12 +460,7 @@ export const LiveAuctionCockpit = () => {
                   }`}
                 >
                   <div className="flex items-center justify-between w-full">
-                    <span 
-                      className="w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm"
-                      style={{ backgroundColor: team.primaryColor || '#3B82F6' }}
-                    >
-                      {team.shortName}
-                    </span>
+                    <TeamMark team={team} className="w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shrink-0 shadow-sm" />
                     {isLeading && (
                       <span className="text-[9px] font-bold uppercase bg-brand-cyan text-slate-950 px-1.5 py-0.5 rounded-full">
                         Leader
@@ -651,12 +642,7 @@ export const LiveAuctionCockpit = () => {
                       className="flex items-center justify-between p-2.5 rounded-xl bg-surface-accent/60 border border-border-subtle text-xs"
                     >
                       <div className="flex items-center gap-2">
-                        <span 
-                          className="w-6 h-6 rounded-md text-[10px] font-bold text-white flex items-center justify-center shrink-0"
-                          style={{ backgroundColor: team?.primaryColor || '#3B82F6' }}
-                        >
-                          {team?.shortName || 'TM'}
-                        </span>
+                        <TeamMark team={team} className="w-6 h-6 rounded-md text-[10px] font-bold text-white flex items-center justify-center shrink-0" />
                         <span className="font-semibold text-white truncate max-w-[120px]">
                           {team?.name || 'Franchise'}
                         </span>

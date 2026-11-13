@@ -23,6 +23,7 @@ import { TabGroup } from '../../components/ui/TabGroup';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { tabContentVariants } from '../../utils/motion';
+import { api } from '../../services/api';
 
 export const PlayersManager = () => {
   const { 
@@ -76,6 +77,8 @@ export const PlayersManager = () => {
     isOverseas: false,
     country: 'Sri Lanka'
   });
+  const [addPlayerPhotoFile, setAddPlayerPhotoFile] = useState(null);
+  const [addPlayerPhotoPreview, setAddPlayerPhotoPreview] = useState('');
 
   // Approval Modal State
   const [selectedReg, setSelectedReg] = useState(null);
@@ -88,6 +91,7 @@ export const PlayersManager = () => {
   // Bulk Import Simulation State
   const [importedData, setImportedData] = useState([]);
   const [importStatus, setImportStatus] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // Filter pending registrations from MongoDB
   const pendingRegistrations = registrations.filter(r => r.status === 'PENDING' || !r.status);
@@ -103,11 +107,14 @@ export const PlayersManager = () => {
     if (!addPlayerForm.fullName.trim()) return;
     setIsCreatingPlayer(true);
     try {
-      await createPlayer({
+      const photoUrl = addPlayerPhotoFile ? (await api.uploadImage(addPlayerPhotoFile)).data.url : '';
+      const result = await createPlayer({
         ...addPlayerForm,
+        photoUrl,
         basePrice: Number(addPlayerForm.basePrice),
         age: Number(addPlayerForm.age)
       });
+      if (!result?.success) throw new Error(result?.error || 'Could not save player.');
       setIsAddModalOpen(false);
       setAddPlayerForm({
         fullName: '',
@@ -121,9 +128,11 @@ export const PlayersManager = () => {
         isOverseas: false,
         country: 'Sri Lanka'
       });
+      setAddPlayerPhotoFile(null);
+      setAddPlayerPhotoPreview('');
       setActiveTab('roster');
     } catch (err) {
-      console.error('Failed to create player:', err);
+      alert(err.message || 'Failed to create player.');
     } finally {
       setIsCreatingPlayer(false);
     }
@@ -143,26 +152,28 @@ export const PlayersManager = () => {
     }
   };
 
-  const handleFileSelect = (e) => {
+  const handleFileSelect = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      // Simulate Excel parsing with realistic rows
-      const parsedSample = [
-        { fullName: "Avishka Fernando", role: "TOP_ORDER_BATTER", age: 26, basePrice: 3000000, category: "CATEGORY_A", matches: 95, runs: 2800 },
-        { fullName: "Binura Fernando", role: "FAST_BOWLER", age: 29, basePrice: 2000000, category: "CATEGORY_B", matches: 68, wickets: 82 },
-        { fullName: "Sadeera Samarawickrama", role: "WICKETKEEPER_BATTER", age: 29, basePrice: 2500000, category: "CATEGORY_A", matches: 110, runs: 2450 },
-        { fullName: "Dushan Hemantha", role: "SPIN_ALL_ROUNDER", age: 30, basePrice: 1500000, category: "CATEGORY_B", matches: 45, runs: 520, wickets: 42 }
-      ];
-      setImportedData(parsedSample);
-      setImportStatus({ count: parsedSample.length, filename: file.name });
-    }
-  };
-
-  const handleExecuteImport = () => {
-    importPlayers(importedData);
+    if (!file) return;
+    setIsImporting(true);
     setImportedData([]);
-    setImportStatus(null);
-    setActiveTab('roster');
+    setImportStatus({ filename: file.name, message: 'Uploading and validating rows…' });
+    try {
+      const result = await importPlayers(file);
+      if (!result?.success) throw new Error(result?.error || 'Import failed.');
+      setImportedData(result.data?.players || []);
+      setImportStatus({
+        filename: file.name,
+        count: result.data?.imported || 0,
+        errors: result.data?.errors || [],
+        message: result.message
+      });
+    } catch (error) {
+      setImportStatus({ filename: file.name, error: error.message });
+    } finally {
+      setIsImporting(false);
+      e.target.value = '';
+    }
   };
 
   // CSV Export
@@ -436,32 +447,37 @@ export const PlayersManager = () => {
                 Upload spreadsheets with columns: Full Name, Role, Batting Style, Bowling Style, Age, Base Price, Category.
               </p>
 
-              <label className="inline-flex">
-                <Button variant="primary" leftIcon={Upload} className="cursor-pointer">
-                  Choose Excel / CSV File
-                  <input type="file" accept=".csv, .xlsx, .xls" onChange={handleFileSelect} className="hidden" />
-                </Button>
+              <label className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-slate-950 bg-brand-cyan hover:bg-cyan-400 cursor-pointer ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <Upload className="h-4 w-4" />
+                {isImporting ? 'Importing…' : 'Choose Excel / CSV File'}
+                <input type="file" accept=".csv,.xlsx,.xls" onChange={handleFileSelect} className="sr-only" disabled={isImporting} />
               </label>
             </Card>
+
+            {importStatus && (
+              <Card className={`p-4 ${importStatus.error ? 'border-red-500/50' : 'border-brand-cyan/40'}`}>
+                <p className={importStatus.error ? 'text-sm text-red-300' : 'text-sm text-emerald-300'}>
+                  {importStatus.error || importStatus.message}
+                </p>
+                {importStatus.errors?.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-amber-300">
+                    {importStatus.errors.map((item) => <li key={`${item.row}-${item.error}`}>Row {item.row}: {item.error}</li>)}
+                  </ul>
+                )}
+              </Card>
+            )}
 
             {/* Parsed Preview Table */}
             {importedData.length > 0 && (
               <Card className="p-5 space-y-4 border-brand-cyan/40">
-                <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-base font-bold text-white">
-                      Parsed Import Preview ({importedData.length} Players Found)
+                      Imported Players ({importedData.length})
                     </h4>
                     <p className="text-xs text-slate-400">Source: {importStatus?.filename}</p>
                   </div>
 
-                  <Button
-                    variant="success"
-                    size="md"
-                    onClick={handleExecuteImport}
-                  >
-                    Commit {importedData.length} Players to Queue
-                  </Button>
                 </div>
 
                 <div className="overflow-x-auto rounded-xl border border-border-subtle">
@@ -522,7 +538,7 @@ export const PlayersManager = () => {
           </div>
 
           <Input
-            label="Base Price (LKR) *"
+            label={activeTournament.type === 'POINTS' ? 'Base Points *' : `Base Price (${activeTournament.currency}) *`}
             type="number"
             required
             value={approvalForm.basePrice}
@@ -596,7 +612,7 @@ export const PlayersManager = () => {
 
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Base Price (LKR) *"
+              label={activeTournament.type === 'POINTS' ? 'Base Points *' : `Base Price (${activeTournament.currency}) *`}
               type="number"
               required
               value={addPlayerForm.basePrice}
@@ -635,11 +651,17 @@ export const PlayersManager = () => {
           </div>
 
           <Input
-            label="Photo URL"
-            placeholder="https://images.unsplash.com/..."
-            value={addPlayerForm.photoUrl}
-            onChange={(e) => setAddPlayerForm({ ...addPlayerForm, photoUrl: e.target.value })}
+            label="Player Photo (from your device)"
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              setAddPlayerPhotoFile(file);
+              setAddPlayerPhotoPreview(URL.createObjectURL(file));
+            }}
           />
+          {addPlayerPhotoPreview && <img src={addPlayerPhotoPreview} alt="Selected player photo" className="h-16 w-16 rounded-lg object-cover" />}
 
           <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-subtle">
             <Button variant="outline" onClick={() => setIsAddModalOpen(false)}>

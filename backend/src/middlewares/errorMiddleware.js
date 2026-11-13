@@ -1,4 +1,13 @@
 const errorHandler = (err, req, res, next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(413).json({ success: false, error: 'File is too large. Check the upload size limit and try again.' });
+  }
+  if (err.name === 'MulterError') {
+    return res.status(400).json({ success: false, error: err.message });
+  }
+  if (err.message?.startsWith('Upload a JPG')) {
+    return res.status(415).json({ success: false, error: err.message });
+  }
   let error = { ...err };
   error.message = err.message;
 

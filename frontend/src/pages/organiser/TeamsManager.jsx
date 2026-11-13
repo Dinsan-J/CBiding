@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Shield, 
   Plus, 
@@ -21,6 +21,7 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
+import { api } from '../../services/api';
 
 export const TeamsManager = () => {
   const { 
@@ -36,6 +37,10 @@ export const TeamsManager = () => {
   // Create Team Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teamLogoFile, setTeamLogoFile] = useState(null);
+  const [teamLogoPreview, setTeamLogoPreview] = useState('');
+  const [directPlayerPhotoFile, setDirectPlayerPhotoFile] = useState(null);
+  const [directPlayerPhotoPreview, setDirectPlayerPhotoPreview] = useState('');
 
   // Expanded Team Squad Accordions (set of teamIds)
   const [expandedTeams, setExpandedTeams] = useState({});
@@ -70,11 +75,16 @@ export const TeamsManager = () => {
   const [form, setForm] = useState({
     name: '',
     shortName: '',
-    primaryColor: '#06B6D4',
+    logoUrl: '',
     startingPurse: activeTournament?.startingPurse || 50000000,
     ownerName: '',
     ownerContact: ''
   });
+  useEffect(() => {
+    if (activeTournament?.startingPurse != null) {
+      setForm(current => ({ ...current, startingPurse: activeTournament.startingPurse }));
+    }
+  }, [activeTournament?._id, activeTournament?.id, activeTournament?.startingPurse]);
 
   const toggleSquadExpand = (teamKey) => {
     setExpandedTeams(prev => ({
@@ -88,19 +98,26 @@ export const TeamsManager = () => {
     if (!form.name.trim() || !form.shortName.trim()) return;
     setIsSubmitting(true);
     try {
-      await createTeam({
+      const logoUrl = teamLogoFile ? (await api.uploadImage(teamLogoFile)).data.url : '';
+      const result = await createTeam({
         ...form,
+        logoUrl,
         auctionId: activeTournament?.id || activeTournament?._id
       });
+      if (!result?.success) throw new Error(result?.error || 'Could not save the team.');
       setIsModalOpen(false);
+      setTeamLogoFile(null);
+      setTeamLogoPreview('');
       setForm({
         name: '',
         shortName: '',
-        primaryColor: '#06B6D4',
+        logoUrl: '',
         startingPurse: activeTournament?.startingPurse || 50000000,
         ownerName: '',
         ownerContact: ''
       });
+    } catch (error) {
+      alert(error.message || 'Could not create team.');
     } finally {
       setIsSubmitting(false);
     }
@@ -136,6 +153,8 @@ export const TeamsManager = () => {
       retentionPrice: 0,
       photoUrl: ''
     });
+    setDirectPlayerPhotoFile(null);
+    setDirectPlayerPhotoPreview('');
     setIsFixedModalOpen(true);
   };
 
@@ -175,8 +194,10 @@ export const TeamsManager = () => {
           alert('Player full name is required.');
           return;
         }
+        const photoUrl = directPlayerPhotoFile ? (await api.uploadImage(directPlayerPhotoFile)).data.url : '';
         res = await assignFixedPlayer(teamId, {
           ...directForm,
+          photoUrl,
           basePrice: isDirectFreeBasePlayer ? 0 : Number(directForm.basePrice || 0),
           retentionPrice: isDirectFreeBasePlayer ? 0 : Number(directForm.retentionPrice || 0)
         });
@@ -251,12 +272,11 @@ export const TeamsManager = () => {
                 {/* Team Header */}
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md shrink-0"
-                      style={{ backgroundColor: team.primaryColor || '#06B6D4' }}
-                    >
-                      {team.shortName}
-                    </div>
+                    {team.logoUrl ? <img src={team.logoUrl} alt={`${team.name} logo`} className="w-12 h-12 rounded-xl object-cover shrink-0" /> : (
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md shrink-0 bg-brand-cyan">
+                        {team.shortName}
+                      </div>
+                    )}
                     <div className="min-w-0">
                       <h3 className="text-lg font-bold text-white leading-tight truncate">{team.name}</h3>
                       <p className="text-xs text-slate-400 truncate">Owner: {team.ownerName || 'Franchise Board'}</p>
@@ -415,22 +435,26 @@ export const TeamsManager = () => {
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Primary Brand Color *
+                Team Logo (from your device)
               </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={form.primaryColor}
-                  onChange={(e) => setForm({ ...form, primaryColor: e.target.value })}
-                  className="w-10 h-10 rounded-lg cursor-pointer bg-surface-card border border-border-subtle p-0.5"
-                />
-                <span className="text-xs font-mono text-slate-300">{form.primaryColor}</span>
-              </div>
+              <input
+                type="file"
+                accept="image/*"
+                required
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  setTeamLogoFile(file);
+                  setTeamLogoPreview(URL.createObjectURL(file));
+                }}
+                className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-surface-accent file:px-3 file:py-2 file:text-slate-100"
+              />
+              {teamLogoPreview && <img src={teamLogoPreview} alt="Selected team logo" className="mt-2 h-14 w-14 rounded-lg object-cover" />}
             </div>
           </div>
 
           <Input
-            label="Initial Salary Cap / Purse *"
+            label={activeTournament?.type === 'POINTS' ? 'Starting Points *' : 'Initial Salary Cap / Purse *'}
             type="number"
             required
             value={form.startingPurse}
@@ -592,7 +616,7 @@ export const TeamsManager = () => {
                       />
                       <div>
                         <span className="text-xs font-bold text-white block">No Base Price (Free)</span>
-                        <span className="text-[10px] text-slate-400">0 LKR — Fixed player without base price</span>
+                        <span className="text-[10px] text-slate-400">{activeTournament?.type === 'POINTS' ? '0 points' : '0 LKR'} — Fixed player without base price</span>
                       </div>
                     </label>
 
@@ -620,7 +644,7 @@ export const TeamsManager = () => {
 
                   {!isFreeBasePlayer && (
                     <Input
-                      label="Custom Contract Fee (LKR)"
+                      label={activeTournament?.type === 'POINTS' ? 'Contract Fee (points)' : `Custom Contract Fee (${activeTournament?.currency || 'LKR'})`}
                       type="number"
                       min={0}
                       value={rosterRetentionFee}
@@ -717,7 +741,7 @@ export const TeamsManager = () => {
                       />
                       <div>
                         <span className="text-xs font-bold text-white block">No Base Price (Free)</span>
-                        <span className="text-[10px] text-slate-400">0 LKR — Fixed player without base price</span>
+                        <span className="text-[10px] text-slate-400">{activeTournament?.type === 'POINTS' ? '0 points' : '0 LKR'} — Fixed player without base price</span>
                       </div>
                     </label>
 
@@ -745,7 +769,7 @@ export const TeamsManager = () => {
 
                   {!isDirectFreeBasePlayer && (
                     <Input
-                      label="Custom Contract Fee (LKR)"
+                      label={activeTournament?.type === 'POINTS' ? 'Contract Fee (points)' : `Custom Contract Fee (${activeTournament?.currency || 'LKR'})`}
                       type="number"
                       min={0}
                       value={directForm.retentionPrice}
@@ -759,11 +783,18 @@ export const TeamsManager = () => {
                 </div>
 
                 <Input
-                  label="Photo URL (Optional)"
-                  placeholder="https://..."
-                  value={directForm.photoUrl}
-                  onChange={(e) => setDirectForm({ ...directForm, photoUrl: e.target.value })}
+                  label="Player Image (from your device)"
+                  type="file"
+                  accept="image/*"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setDirectPlayerPhotoFile(file);
+                    setDirectPlayerPhotoPreview(URL.createObjectURL(file));
+                  }}
+                  className="block w-full text-xs text-slate-300 file:mr-3 file:rounded-lg file:border-0 file:bg-surface-accent file:px-3 file:py-2 file:text-slate-100"
                 />
+                {directPlayerPhotoPreview && <img src={directPlayerPhotoPreview} alt="Selected player" className="h-14 w-14 rounded-lg object-cover" />}
               </div>
             )}
 

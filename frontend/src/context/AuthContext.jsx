@@ -36,6 +36,7 @@ export const AuthProvider = ({ children }) => {
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
         setUser(userData);
+        window.dispatchEvent(new Event('bidx:auth-changed'));
       return userData;
     }
     throw new Error('The server did not return a valid login session.');
@@ -44,6 +45,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
+    window.dispatchEvent(new Event('bidx:auth-changed'));
   };
 
   return (

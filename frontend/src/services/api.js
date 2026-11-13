@@ -17,7 +17,7 @@ const getAuthToken = () => {
 const request = async (endpoint, options = {}) => {
   const token = getAuthToken();
   const headers = {
-    'Content-Type': 'application/json',
+    ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {})
   };
@@ -50,6 +50,11 @@ export const api = {
     }),
 
   getMe: () => request('/auth/me'),
+  uploadImage: (file) => {
+    const body = new FormData();
+    body.append('file', file);
+    return request('/uploads/image', { method: 'POST', body });
+  },
 
   // Auctions
   getAuctions: () => request('/auctions'),
@@ -111,6 +116,12 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data)
     }),
+  importPlayers: (file, auctionId) => {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('auctionId', auctionId);
+    return request('/players/import', { method: 'POST', body });
+  },
   updatePlayer: (id, data) => 
     request(`/players/${id}`, {
       method: 'PUT',

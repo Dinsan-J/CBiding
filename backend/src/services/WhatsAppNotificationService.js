@@ -49,7 +49,7 @@ class WhatsAppNotificationService {
     const formattedAmount = (acquisition?.finalBidAmount || player?.finalPrice || 0).toLocaleString();
     const messageBody = `🏏 *BidX Auction Acquisition Alert*\n\n` +
       `Congratulations *${player.fullName}*!\n` +
-      `You have been officially acquired by *${team.name}* (${team.shortName}) for *${auction.currency} ${formattedAmount}* in *${auction.title}*.\n\n` +
+      `You have been officially acquired by *${team.name}* (${team.shortName}) for *${auction.type === 'POINTS' ? `${formattedAmount} points` : `${auction.currency} ${formattedAmount}`}* in *${auction.title}*.\n\n` +
       `View official squad roster: https://bidxnew.vercel.app/teams`;
 
     try {

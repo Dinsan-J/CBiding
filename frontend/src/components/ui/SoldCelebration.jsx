@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { soldBadgeVariant } from '../../utils/motion';
 import { formatCurrency, getRoleLabel } from '../../utils/formatters';
+import { TeamMark } from './TeamMark';
 import { Trophy, CheckCircle2 } from 'lucide-react';
 import { Button } from './Button';
 
@@ -130,12 +131,7 @@ export const SoldCelebration = ({
           {/* Acquisition Banner: Winning Team & Price */}
           <div className="bg-surface-accent/70 border border-border-subtle rounded-2xl p-5 mb-6 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3 text-left">
-              <div 
-                className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-md"
-                style={{ backgroundColor: team.primaryColor || '#2563EB' }}
-              >
-                {team.shortName || 'TM'}
-              </div>
+              <TeamMark team={team} className="w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg text-white shadow-md" />
               <div>
                 <p className="text-xs text-slate-400 uppercase font-semibold">Acquired by</p>
                 <h4 className="text-lg font-bold text-white leading-tight">{team.name}</h4>

@@ -70,7 +70,11 @@ export const TournamentsManager = () => {
       const res = await updateTournamentStatus(tournId, newStatus);
       if (res && !res.success) {
         alert(res.error || 'Failed to update status');
+      } else if (newStatus === 'LIVE') {
+        await setActiveTournamentId(tournId);
       }
+    } catch (error) {
+      alert(error.message || 'Failed to update or load tournament.');
     } finally {
       setActionLoadingId(null);
     }
@@ -91,6 +95,17 @@ export const TournamentsManager = () => {
       if (res && !res.success) {
         alert(res.error || 'Failed to delete tournament');
       }
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleActivate = async (auctionId) => {
+    setActionLoadingId(auctionId);
+    try {
+      await setActiveTournamentId(auctionId);
+    } catch (error) {
+      alert(error.message || 'Could not load the selected tournament.');
     } finally {
       setActionLoadingId(null);
     }
@@ -146,7 +161,7 @@ export const TournamentsManager = () => {
                   {tourn.status}
                 </Badge>
                 <span className="text-xs font-mono font-bold text-slate-400 uppercase">
-                  {tourn.type} ({tourn.currency})
+                  {tourn.type === 'POINTS' ? 'POINTS AUCTION' : `MONEY AUCTION (${tourn.currency})`}
                 </span>
               </div>
 
@@ -160,7 +175,7 @@ export const TournamentsManager = () => {
               <div className="grid grid-cols-2 gap-2 bg-surface-accent/60 p-3 rounded-xl border border-border-subtle mt-4 text-xs font-mono">
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase">Base Purse</span>
-                  <strong className="text-brand-emerald">{formatCurrency(tourn.startingPurse, tourn.currency)}</strong>
+              <strong className="text-brand-emerald">{formatCurrency(tourn.startingPurse, tourn.type === 'POINTS' ? 'POINTS' : tourn.currency)}</strong>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase">Squad Limits</span>
@@ -201,7 +216,8 @@ export const TournamentsManager = () => {
                   <Button 
                     size="xs" 
                     variant="outline"
-                    onClick={() => setActiveTournamentId(tourn.id || tourn._id)}
+                    disabled={actionLoadingId === (tourn.id || tourn._id)}
+                    onClick={() => handleActivate(tourn.id || tourn._id)}
                   >
                     Set Active
                   </Button>
@@ -247,7 +263,12 @@ export const TournamentsManager = () => {
               </label>
               <select
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                onChange={(e) => {
+                  const type = e.target.value;
+                  setForm(type === 'POINTS'
+                    ? { ...form, type, currency: 'POINTS', startingPurse: 100000, minBasePrice: 100 }
+                    : { ...form, type, currency: form.currency === 'POINTS' ? 'LKR' : form.currency, startingPurse: 50000000, minBasePrice: 50000 });
+                }}
                 className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-sm text-slate-100"
               >
                 <option value="MONEY">Financial (Currency)</option>
@@ -255,7 +276,7 @@ export const TournamentsManager = () => {
               </select>
             </div>
 
-            <div className="space-y-1.5">
+            {form.type === 'MONEY' && <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Currency Code *
               </label>
@@ -267,14 +288,13 @@ export const TournamentsManager = () => {
                 <option value="LKR">LKR (Sri Lankan Rupee)</option>
                 <option value="USD">USD (US Dollar)</option>
                 <option value="INR">INR (Indian Rupee)</option>
-                <option value="POINTS">POINTS (Token Pool)</option>
               </select>
-            </div>
+            </div>}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <Input
-              label="Starting Purse"
+              label={form.type === 'POINTS' ? 'Starting Points' : 'Starting Purse'}
               type="number"
               required
               value={form.startingPurse}
@@ -303,9 +323,9 @@ export const TournamentsManager = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid ${form.type === 'POINTS' ? 'grid-cols-1' : 'grid-cols-2'} gap-3`}>
             <Input
-              label="Min Base Price (LKR)"
+              label={form.type === 'POINTS' ? 'Minimum Base Points' : `Minimum Base Price (${form.currency})`}
               type="number"
               required
               value={form.minBasePrice}
