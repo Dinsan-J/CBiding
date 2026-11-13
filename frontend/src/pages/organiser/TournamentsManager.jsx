@@ -70,8 +70,6 @@ export const TournamentsManager = () => {
       const res = await updateTournamentStatus(tournId, newStatus);
       if (res && !res.success) {
         alert(res.error || 'Failed to update status');
-      } else if (newStatus === 'LIVE') {
-        await setActiveTournamentId(tournId);
       }
     } catch (error) {
       alert(error.message || 'Failed to update or load tournament.');
@@ -219,7 +217,7 @@ export const TournamentsManager = () => {
                     disabled={actionLoadingId === (tourn.id || tourn._id)}
                     onClick={() => handleActivate(tourn.id || tourn._id)}
                   >
-                    Set Active
+                    Select Tournament
                   </Button>
                 )}
 

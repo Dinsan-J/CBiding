@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Radio, Users, Shield, BarChart3, Trophy, Search, UserPlus } from 'lucide-react';
@@ -8,10 +8,21 @@ import { cn } from '../utils/cn';
 export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
   const { slug } = useParams();
-  const { tournaments, activeTournament } = useAuction();
-  const currentTournament = tournament || tournaments.find(t => t.slug === slug) || activeTournament;
+  const { tournaments, activeTournament, loadPublicTournament } = useAuction();
+  const publicSlug = slug || (!activeTournament?.id ? (import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026') : '');
+  useEffect(() => {
+    if (publicSlug && activeTournament?.slug !== publicSlug) {
+      loadPublicTournament(publicSlug).catch(() => {});
+    }
+  }, [publicSlug, loadPublicTournament]);
+
+  const currentTournament = tournament || (
+    slug
+      ? (tournaments.find(t => t.slug === slug) || (activeTournament?.slug === slug ? activeTournament : null))
+      : activeTournament
+  );
   const currentSlug = currentTournament?.slug || slug || 'cpl-2026';
-  const currentTitle = currentTournament?.title || 'Colombo Premier League 2026';
+  const currentTitle = currentTournament?.title || 'BidX Tournament';
 
   const isCustomSlug = Boolean(slug);
   const homePath = isCustomSlug ? `/live/${slug}` : '/';

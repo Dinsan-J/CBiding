@@ -19,13 +19,17 @@ import {
 import { cn } from '../utils/cn';
 import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
+import { useAuction } from '../context/AuctionContext';
+import { TournamentSelector } from '../components/layout/TournamentSelector';
 
 export const DashboardLayout = ({ children }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { tournaments, activeTournamentId, setActiveTournamentId, isLiveLoading, selectionError } = useAuction();
   const navigate = useNavigate();
   const location = useLocation();
+  const isTournamentManagementRoute = location.pathname.startsWith('/admin/tournaments');
 
   const handleLogout = () => {
     logout();
@@ -257,6 +261,8 @@ export const DashboardLayout = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            <TournamentSelector />
+
             <Link
               to="/"
               target="_blank"
@@ -271,6 +277,7 @@ export const DashboardLayout = ({ children }) => {
               size="sm"
               leftIcon={Gavel}
               onClick={() => navigate('/admin/live')}
+              disabled={!activeTournamentId || isLiveLoading}
               className="text-xs px-2.5 sm:px-3 py-1.5 font-bold shadow-glow-emerald"
             >
               <span className="hidden xs:inline sm:inline">Launch Live Floor</span>
@@ -287,15 +294,46 @@ export const DashboardLayout = ({ children }) => {
           </div>
         </header>
 
-        {/* Routed View Space with Guaranteed, Non-Blocking Smooth Entrance */}
+        {/* Routed View Space with Tournament-Scoped Data */}
         <main className="flex-1 p-3 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <motion.div
-            key={location.pathname}
+            key={`${location.pathname}:${activeTournamentId || 'none'}`}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
           >
-            {children || <Outlet />}
+            {isTournamentManagementRoute ? (children || <Outlet />) : isLiveLoading ? (
+              <div className="rounded-2xl border border-border-subtle bg-surface-card p-8 text-center">
+                <p className="text-sm font-semibold text-white">Loading tournament workspace…</p>
+                <p className="mt-1 text-xs text-slate-400">Teams, players, squads, and auction settings are syncing.</p>
+              </div>
+            ) : selectionError ? (
+              <div className="rounded-2xl border border-red-500/30 bg-red-950/20 p-8 text-center">
+                <p className="text-sm font-semibold text-red-200">Could not load this tournament</p>
+                <p className="mt-1 text-xs text-red-300">{selectionError}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => setActiveTournamentId(activeTournamentId).catch(() => {})}
+                >
+                  Retry loading
+                </Button>
+              </div>
+            ) : !activeTournamentId ? (
+              <div className="rounded-2xl border border-border-subtle bg-surface-card p-8 text-center">
+                <Trophy className="mx-auto h-8 w-8 text-brand-cyan" />
+                <h3 className="mt-3 text-base font-bold text-white">Select a tournament first</h3>
+                <p className="mt-1 text-sm text-slate-400">
+                  Choose a tournament above to load its teams, players, squads, and auction rules across the workspace.
+                </p>
+                {!tournaments.length && (
+                  <Link to="/admin/tournaments" className="mt-4 inline-flex text-sm font-semibold text-brand-cyan hover:text-cyan-300">
+                    Create your first tournament
+                  </Link>
+                )}
+              </div>
+            ) : (children || <Outlet />)}
           </motion.div>
         </main>
       </div>

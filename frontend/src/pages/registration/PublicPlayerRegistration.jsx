@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { 
   Users, 
@@ -20,7 +20,13 @@ import { Badge } from '../../components/ui/Badge';
 
 export const PublicPlayerRegistration = () => {
   const { slug } = useParams();
-  const { activeTournament, registerPlayer } = useAuction();
+  const { activeTournament, registerPlayer, loadPublicTournament } = useAuction();
+  const targetSlug = slug || activeTournament?.slug || import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
+  useEffect(() => {
+    if (targetSlug && activeTournament?.slug !== targetSlug) {
+      loadPublicTournament(targetSlug).catch(() => {});
+    }
+  }, [targetSlug, loadPublicTournament]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -66,7 +72,6 @@ export const PublicPlayerRegistration = () => {
     setErrorMessage(null);
 
     try {
-      const targetSlug = slug || activeTournament?.slug || 'cpl-2026';
       const payload = {
         fullName: formData.fullName.trim(),
         contactNumber: formData.contactNumber.trim(),
@@ -106,7 +111,7 @@ export const PublicPlayerRegistration = () => {
           </div>
           <h2 className="text-2xl font-bold text-white">Registration Submitted!</h2>
           <p className="text-sm text-slate-300 mt-2">
-            Your player profile for <strong>{activeTournament.title}</strong> has been registered. The tournament committee will review your statistics and assign your auction category.
+            Your player profile for <strong>{activeTournament?.title || 'the selected tournament'}</strong> has been registered. The tournament committee will review your statistics and assign your auction category.
           </p>
           <div className="p-4 bg-surface-accent rounded-xl border border-border-subtle my-6 text-left text-xs space-y-1">
             <p><span className="text-slate-400">Player:</span> <strong className="text-white">{formData.fullName}</strong></p>
@@ -149,7 +154,7 @@ export const PublicPlayerRegistration = () => {
             OFFICIAL REGISTRATION PORTAL
           </Badge>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-            {activeTournament.title}
+            {activeTournament?.title || 'Loading tournament…'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
             Fill in your authentic playing statistics and personal information to be drafted into the official player auction pool.

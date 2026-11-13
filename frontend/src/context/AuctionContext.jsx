@@ -3,6 +3,16 @@ import { api } from '../services/api';
 import { getSocket, joinAuctionRoom, leaveAuctionRoom } from '../services/socket';
 
 const AuctionContext = createContext(null);
+const ACTIVE_TOURNAMENT_STORAGE_KEY = 'bidx_active_tournament_id';
+const getStoredTournamentId = () => {
+  try { return window.localStorage.getItem(ACTIVE_TOURNAMENT_STORAGE_KEY); } catch { return null; }
+};
+const storeTournamentId = id => {
+  try { window.localStorage.setItem(ACTIVE_TOURNAMENT_STORAGE_KEY, id); } catch { /* Selection still works for this session. */ }
+};
+const clearStoredTournamentId = () => {
+  try { window.localStorage.removeItem(ACTIVE_TOURNAMENT_STORAGE_KEY); } catch { /* Selection still works for this session. */ }
+};
 const normalizeAuction = auction => ({
   ...auction,
   id: auction._id || auction.id,
@@ -14,6 +24,10 @@ export const AuctionProvider = ({ children }) => {
   const [tournaments, setTournaments] = useState([]);
   const [activeTournamentId, setActiveTournamentIdState] = useState(null);
   const [auctionDbId, setAuctionDbId] = useState(null);
+  const [selectionError, setSelectionError] = useState('');
+  const selectionRequestRef = useRef(0);
+  const activeTournamentIdRef = useRef(activeTournamentId);
+  useEffect(() => { activeTournamentIdRef.current = activeTournamentId; }, [activeTournamentId]);
 
   // Loading state for live backend data (prevents flashing mock data on refresh)
   const [isLiveLoading, setIsLiveLoading] = useState(true);
@@ -24,9 +38,10 @@ export const AuctionProvider = ({ children }) => {
   const [registrations, setRegistrations] = useState([]);
   const auctionIdRef = useRef(auctionDbId);
   useEffect(() => { auctionIdRef.current = auctionDbId; }, [auctionDbId]);
+  const isCurrentAuction = useCallback((id) => Boolean(id) && String(auctionIdRef.current) === String(id), []);
 
   // Active Live Lot Engine State
-  const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0] || {};
+  const activeTournament = tournaments.find(t => String(t._id || t.id) === String(activeTournamentId)) || {};
 
   // Available un-auctioned players — UNSOLD excluded until explicitly re-queued
   const availablePlayers = players.filter(p => 
@@ -92,7 +107,7 @@ export const AuctionProvider = ({ children }) => {
     if (!id) return;
     try {
       const res = await api.getRegistrations(id);
-      if (res?.success && Array.isArray(res.data)) {
+      if (isCurrentAuction(id) && res?.success && Array.isArray(res.data)) {
         setRegistrations(res.data.map(r => ({
           ...r,
           id: r._id,
@@ -104,168 +119,203 @@ export const AuctionProvider = ({ children }) => {
     } catch (err) {
       console.warn('[BidX Context] Could not fetch registrations from server:', err.message);
     }
-  }, []);
+  }, [isCurrentAuction]);
 
   const setActiveTournamentId = useCallback(async (id) => {
     if (!id) return;
-    setActiveTournamentIdState(id);
-    setAuctionDbId(id);
+    const targetId = String(id);
+    const requestId = ++selectionRequestRef.current;
+    setActiveTournamentIdState(targetId);
+    activeTournamentIdRef.current = targetId;
+    setAuctionDbId(targetId);
+    auctionIdRef.current = targetId;
+    setSelectionError('');
+    setTeams([]);
+    setPlayers([]);
+    setRegistrations([]);
+    setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
+    setIsLiveLoading(true);
+    storeTournamentId(targetId);
+    try {
+      const [liveResult, teamsResult, playersResult] = await Promise.all([
+        api.getLiveState(targetId),
+        api.getTeams(targetId),
+        api.getPlayers(targetId)
+      ]);
+      if (requestId !== selectionRequestRef.current) return;
+      if (!liveResult?.success || !liveResult.data?.auction) throw new Error(liveResult?.error || 'Could not load the selected tournament.');
+      if (!teamsResult?.success || !Array.isArray(teamsResult.data)) throw new Error(teamsResult?.error || 'Could not load this tournament’s teams.');
+      if (!playersResult?.success || !Array.isArray(playersResult.data)) throw new Error(playersResult?.error || 'Could not load this tournament’s players.');
+
+      const { auction } = liveResult.data;
+      const loadedTeams = teamsResult.data;
+      const loadedPlayers = playersResult.data;
+      setTournaments(prev => {
+        const exists = prev.some(t => String(t._id || t.id) === targetId);
+        return exists
+          ? prev.map(t => String(t._id || t.id) === targetId ? { ...t, ...normalizeAuction(auction) } : t)
+          : [normalizeAuction(auction), ...prev];
+      });
+      setTeams(loadedTeams.map(team => ({ ...team, id: team._id || team.id })));
+      const uniquePlayers = new Map(loadedPlayers.map(player => [String(player._id || player.id), { ...player, id: player._id || player.id }]));
+      const activePlayer = auction.currentLot?.playerId;
+      if (activePlayer && typeof activePlayer === 'object' && activePlayer._id) {
+        uniquePlayers.set(String(activePlayer._id), { ...activePlayer, id: activePlayer._id });
+      }
+      setPlayers([...uniquePlayers.values()]);
+      const highestTeam = auction.currentLot?.highestBidderTeamId;
+      setActiveLot({
+        playerId: (activePlayer?._id || activePlayer?.id || activePlayer) || null,
+        currentBid: auction.currentLot?.currentBid || activePlayer?.basePrice || 0,
+        highestBidderTeamId: highestTeam?._id || highestTeam?.id || highestTeam || null,
+        bidCount: auction.currentLot?.bidCount || 0,
+        timerSeconds: auction.timerSeconds || 30,
+        isTimerRunning: Boolean(auction.currentLot?.isTimerRunning),
+        bidHistory: []
+      });
+      api.getRegistrations(targetId).then(registrationResult => {
+        if (requestId === selectionRequestRef.current) {
+          setRegistrations((registrationResult?.data || []).map(r => ({
+            ...r,
+            id: r._id,
+            matches: r.stats?.matches || 0,
+            runs: r.stats?.runs || 0,
+            wickets: r.stats?.wickets || 0
+          })));
+        }
+      }).catch(() => {
+        // Registration permissions can vary by role; the main tournament datasets still load.
+      });
+    } catch (error) {
+      if (requestId === selectionRequestRef.current) {
+        setTeams([]);
+        setPlayers([]);
+        setRegistrations([]);
+        setSelectionError(error.message || 'Could not load the selected tournament.');
+        console.error('[BidX Context] Could not activate tournament:', error.message);
+      }
+      throw error;
+    } finally {
+      if (requestId === selectionRequestRef.current) setIsLiveLoading(false);
+    }
+  }, []);
+
+  const loadPublicTournament = useCallback(async (slug) => {
+    if (!slug) return;
+    const requestId = ++selectionRequestRef.current;
+    setSelectionError('');
+    setActiveTournamentIdState(null);
+    activeTournamentIdRef.current = null;
+    setAuctionDbId(null);
+    auctionIdRef.current = null;
     setTeams([]);
     setPlayers([]);
     setRegistrations([]);
     setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
     setIsLiveLoading(true);
     try {
-      const result = await api.getLiveState(id);
-      if (!result?.success || !result.data?.auction) throw new Error(result?.error || 'Could not load the selected auction.');
-      const { auction, teams: loadedTeams = [], queuedPlayers = [], soldPlayers = [], unsoldPlayers = [] } = result.data;
-      setTournaments(prev => prev.map(t => String(t._id || t.id) === String(id) ? { ...t, ...normalizeAuction(auction) } : t));
-      setTeams(loadedTeams.map(team => ({ ...team, id: team._id })));
-      const uniquePlayers = new Map();
-      [...queuedPlayers, ...soldPlayers, ...unsoldPlayers].forEach(player => uniquePlayers.set(String(player._id), { ...player, id: player._id }));
+      const result = await api.getPublicBroadcast(slug);
+      if (requestId !== selectionRequestRef.current) return;
+      if (!result?.success || !result.data?.auction) throw new Error(result?.error || 'Could not load this tournament.');
+      const { auction, teams: loadedTeams = [], players: loadedPlayers = [] } = result.data;
+      const normalizedAuction = normalizeAuction(auction);
+      const id = String(auction._id || auction.id);
+      setTournaments(prev => {
+        const exists = prev.some(t => String(t._id || t.id) === id);
+        return exists
+          ? prev.map(t => String(t._id || t.id) === id ? { ...t, ...normalizedAuction } : t)
+          : (prev.length ? [...prev, normalizedAuction] : [normalizedAuction]);
+      });
+      setActiveTournamentIdState(id);
+      activeTournamentIdRef.current = id;
+      setAuctionDbId(id);
+      auctionIdRef.current = id;
+      setTeams(loadedTeams.map(team => ({ ...team, id: team._id || team.id })));
+      setPlayers(loadedPlayers.map(player => ({ ...player, id: player._id || player.id })));
       const activePlayer = auction.currentLot?.playerId;
-      if (activePlayer?._id) uniquePlayers.set(String(activePlayer._id), { ...activePlayer, id: activePlayer._id });
-      setPlayers([...uniquePlayers.values()]);
       const highestTeam = auction.currentLot?.highestBidderTeamId;
       setActiveLot({
-        playerId: activePlayer?._id || activePlayer || null,
+        playerId: (activePlayer?._id || activePlayer?.id || activePlayer) || null,
         currentBid: auction.currentLot?.currentBid || activePlayer?.basePrice || 0,
-        highestBidderTeamId: highestTeam?._id || highestTeam || null,
+        highestBidderTeamId: highestTeam?._id || highestTeam?.id || highestTeam || null,
         bidCount: auction.currentLot?.bidCount || 0,
         timerSeconds: auction.timerSeconds || 30,
         isTimerRunning: Boolean(auction.currentLot?.isTimerRunning),
         bidHistory: []
       });
-      await fetchRegistrations(id);
+      storeTournamentId(id);
     } catch (error) {
-      console.error('[BidX Context] Could not activate tournament:', error.message);
+      if (requestId === selectionRequestRef.current) {
+        setSelectionError(error.message || 'Could not load this tournament.');
+        console.error('[BidX Context] Could not load public tournament:', error.message);
+      }
       throw error;
     } finally {
-      setIsLiveLoading(false);
+      if (requestId === selectionRequestRef.current) setIsLiveLoading(false);
     }
-  }, [fetchRegistrations]);
+  }, []);
 
   // Live Backend Data Synchronization
   useEffect(() => {
     let isMounted = true;
 
-    // MAX skeleton wait = 2.5s — after that show the page regardless of backend speed.
-    // The API response will still update state live when it eventually arrives (Render cold start).
-    const skeletonTimeout = setTimeout(() => {
-      if (isMounted) setIsLiveLoading(false);
-    }, 2500);
-
-    const fetchLiveData = async () => {
+    const fetchTournamentList = async () => {
+      const selectionRequestAtStart = selectionRequestRef.current;
       try {
-        let res;
-        try {
-          const privateAuctions = await api.getAuctions();
-          if (privateAuctions?.data?.length) {
-            const list = privateAuctions.data.map(normalizeAuction);
-            setTournaments(list);
-            await setActiveTournamentId(list[0]._id);
-            return;
-          }
-        } catch {
-          // Public viewers have no organiser session; load the configured public auction below.
+        const privateAuctions = await api.getAuctions();
+        if (!isMounted) return;
+        const list = Array.isArray(privateAuctions?.data) ? privateAuctions.data.map(normalizeAuction) : [];
+        if (selectionRequestAtStart !== selectionRequestRef.current) {
+          setTournaments(prev => {
+            const current = prev.find(t => String(t._id || t.id) === String(activeTournamentIdRef.current));
+            const merged = [...list];
+            if (current && !merged.some(t => String(t._id || t.id) === String(current._id || current.id))) merged.push(current);
+            return merged;
+          });
+          return;
         }
-        const publicSlug = import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
-        res = await api.getPublicBroadcast(publicSlug);
-        if (isMounted && res?.success && res.data) {
-          const { auction, teams: liveTeams, players: livePlayers } = res.data;
-          if (auction?._id) {
-            setAuctionDbId(auction._id);
-          }
-          if (auction) {
-            const tournament = normalizeAuction(auction);
-            setTournaments([tournament]);
-            setActiveTournamentIdState(auction._id);
-          }
-          if (Array.isArray(liveTeams)) {
-            setTeams(liveTeams.map(t => ({
-              ...t,
-              id: t._id,
-              shortName: t.shortName,
-              ownerName: t.ownerName
-            })));
-          }
-          if (Array.isArray(livePlayers)) {
-            setPlayers(livePlayers.map(p => ({
-              ...p,
-              id: p._id,
-              fullName: p.fullName
-            })));
-          }
-          if (auction?.currentLot?.playerId) {
-            // Always use String() to avoid Mongoose ObjectId vs plain string mismatch
-            const rawPId = auction.currentLot.playerId?._id || auction.currentLot.playerId;
-            const curPId = String(rawPId);
-            const pObj = livePlayers?.find(p => String(p._id) === curPId || String(p.id) === curPId);
-            if (pObj && (pObj.status === 'SOLD' || pObj.status === 'RETAINED' || pObj.winningTeamId)) {
-              // Player is already sold/retained — clear the active lot
-              setActiveLot(prev => ({
-                ...prev,
-                playerId: null,
-                currentBid: 0,
-                highestBidderTeamId: null,
-                bidCount: 0,
-                isTimerRunning: false,
-                bidHistory: []
-              }));
-            } else {
-              // Active player is legitimately on stage — set the lot with string IDs
-              const hBidTeamRaw = auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId;
-              setActiveLot(prev => ({
-                ...prev,
-                playerId: curPId,
-                currentBid: auction.currentLot.currentBid || (pObj?.basePrice || 0),
-                highestBidderTeamId: hBidTeamRaw ? String(hBidTeamRaw) : null,
-                bidCount: auction.currentLot.bidCount || 0,
-                isTimerRunning: auction.currentLot.isTimerRunning || false
-              }));
-              // Also ensure the LIVE player appears in players list (handles newly added players)
-              if (pObj) {
-                const updatedPObj = { ...pObj, id: curPId, status: pObj.status === 'QUEUED' ? 'LIVE' : pObj.status };
-                setPlayers(prev => {
-                  const exists = prev.some(p => String(p._id) === curPId || String(p.id) === curPId);
-                  if (exists) return prev.map(p => (String(p._id) === curPId || String(p.id) === curPId) ? { ...p, ...updatedPObj } : p);
-                  return [updatedPObj, ...prev];
-                });
-              }
-            }
-          } else if (!auction?.currentLot?.playerId && auction?.status === 'LIVE') {
-            // Auction is LIVE but no current lot — clear stale lot state
-            setActiveLot(prev => ({
-              ...prev,
-              playerId: null,
-              currentBid: 0,
-              highestBidderTeamId: null,
-              bidCount: 0,
-              isTimerRunning: false,
-              bidHistory: []
-            }));
-          }
-
-          // Also fetch backend registrations
-          if (auction?._id) {
-            fetchRegistrations(auction._id);
-          }
+        setTournaments(list);
+        const savedId = getStoredTournamentId();
+        const savedTournament = list.find(t => String(t._id || t.id) === String(savedId));
+        if (savedTournament) {
+          await setActiveTournamentId(savedTournament._id || savedTournament.id);
+        } else {
+          if (savedId) clearStoredTournamentId();
+          setSelectionError('');
+          setActiveTournamentIdState(null);
+          activeTournamentIdRef.current = null;
+          setAuctionDbId(null);
+          auctionIdRef.current = null;
+          setTeams([]);
+          setPlayers([]);
+          setRegistrations([]);
+          setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
+          setIsLiveLoading(false);
         }
       } catch (err) {
-        console.warn('[BidX Context] Could not load auction data:', err.message);
+        if (isMounted && selectionRequestAtStart === selectionRequestRef.current) {
+          setTournaments([]);
+          setActiveTournamentIdState(null);
+          activeTournamentIdRef.current = null;
+          setAuctionDbId(null);
+          auctionIdRef.current = null;
+          setTeams([]);
+          setPlayers([]);
+          setRegistrations([]);
+          setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
+          setIsLiveLoading(false);
+        }
       } finally {
-        // Clear loading regardless — skeletonTimeout may have already done this
-        if (isMounted) setIsLiveLoading(false);
+        if (isMounted && selectionRequestAtStart === selectionRequestRef.current) setIsLiveLoading(false);
       }
     };
-    fetchLiveData();
-    window.addEventListener('bidx:auth-changed', fetchLiveData);
+    fetchTournamentList();
+    window.addEventListener('bidx:auth-changed', fetchTournamentList);
     return () => {
       isMounted = false;
-      clearTimeout(skeletonTimeout);
-      window.removeEventListener('bidx:auth-changed', fetchLiveData);
+      window.removeEventListener('bidx:auth-changed', fetchTournamentList);
     };
-  }, [fetchRegistrations, setActiveTournamentId]);
+  }, [setActiveTournamentId]);
 
   // Dynamic Socket.IO Room Management
   useEffect(() => {
@@ -273,9 +323,14 @@ export const AuctionProvider = ({ children }) => {
     const auctionRoomId = auctionDbId;
     if (!auctionRoomId) return;
     joinAuctionRoom(auctionRoomId);
+    const listenForSelectedAuction = (eventName, handler) => {
+      socket.on(eventName, (...args) => {
+        if (isCurrentAuction(auctionRoomId)) handler(...args);
+      });
+    };
 
     // 1. Live Bid Placed
-    socket.on('bid_placed', ({ bid, team, player }) => {
+    listenForSelectedAuction('bid_placed', ({ bid, team, player }) => {
       const teamId = String(team._id || team.id);
       setActiveLot(prev => ({
         ...prev,
@@ -297,7 +352,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 2. Lot Hammer SOLD
-    socket.on('lot_sold', ({ player, team, acquisition, nextPlayer }) => {
+    listenForSelectedAuction('lot_sold', ({ player, team, acquisition, nextPlayer }) => {
       const winningPrice = acquisition?.finalBidAmount || activeLot.currentBid;
       const teamId = String(team?._id || team?.id || '');
       const playerId = String(player?._id || player?.id || '');
@@ -364,7 +419,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 3. Lot Hammer UNSOLD
-    socket.on('lot_unsold', ({ player, nextPlayer }) => {
+    listenForSelectedAuction('lot_unsold', ({ player, nextPlayer }) => {
       const playerId = String(player?._id || player?.id || '');
       if (playerId) {
         setPlayers(prev => prev.map(p =>
@@ -408,7 +463,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 4. Next Lot Selected
-    socket.on('lot_selected', ({ player }) => {
+    listenForSelectedAuction('lot_selected', ({ player }) => {
       if (!player) return;
       const playerId = String(player._id || player.id);
       setActiveLot({
@@ -435,7 +490,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 5. Bid Undone
-    socket.on('bid_undone', ({ auction }) => {
+    listenForSelectedAuction('bid_undone', ({ auction }) => {
       if (auction?.currentLot) {
         setActiveLot(prev => ({
           ...prev,
@@ -448,7 +503,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 6. Fixed / Retained Player Assigned
-    socket.on('fixed_player_assigned', ({ player, team }) => {
+    listenForSelectedAuction('fixed_player_assigned', ({ player, team }) => {
       const tId = team._id || team.id;
       const pId = player._id || player.id;
       setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...team, id: tId } : t));
@@ -463,7 +518,7 @@ export const AuctionProvider = ({ children }) => {
     });
 
     // 7. Fixed / Retained Player Removed
-    socket.on('fixed_player_removed', ({ player, team }) => {
+    listenForSelectedAuction('fixed_player_removed', ({ player, team }) => {
       const tId = team._id || team.id;
       const pId = player._id || player.id;
       setTeams(prev => prev.map(t => (t.id === tId || t._id === tId) ? { ...t, ...team, id: tId } : t));
@@ -480,10 +535,12 @@ export const AuctionProvider = ({ children }) => {
       socket.off('fixed_player_assigned');
       socket.off('fixed_player_removed');
     };
-  }, [auctionDbId]);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Place Bid (Instant Optimistic UI Update + Authoritative Backend Execution)
   const placeBid = useCallback(async (teamId, amount) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, reason: 'Select a tournament first.' };
     const team = teams.find(t => t.id === teamId || t._id === teamId);
     if (!team) return { success: false, reason: "Team not found" };
 
@@ -516,11 +573,12 @@ export const AuctionProvider = ({ children }) => {
 
     // 3. Dispatch to backend authoritative auction engine
     try {
-      const res = await api.placeBid(auctionDbId, {
+      const res = await api.placeBid(targetAuctionId, {
         playerId: targetPlayerId,
         teamId: teamKey,
         amount
       });
+      if (!isCurrentAuction(targetAuctionId)) return { success: false, reason: 'Tournament changed while the bid was processing.' };
 
       if (res?.success && res.data) {
         const serverBid = res.data.bid;
@@ -538,16 +596,18 @@ export const AuctionProvider = ({ children }) => {
       return { success: true };
     } catch (err) {
       console.warn('[BidX Engine] Backend rejected bid:', err.message);
-      if (rollbackSnapshot) {
+      if (rollbackSnapshot && isCurrentAuction(targetAuctionId)) {
         setActiveLot(rollbackSnapshot);
       }
       return { success: false, reason: err.message };
     }
-  }, [teams, activeLot.playerId, currentLotPlayer, auctionDbId, activeTournament.timerSeconds]);
+  }, [teams, activeLot.playerId, currentLotPlayer, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
 
   // Action: Hammer SOLD (Authoritative Backend Execution)
   const hammerSold = useCallback(async () => {
     if (!currentLotPlayer) return;
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
 
     if (!currentHighestTeam || !activeLot.highestBidderTeamId || activeLot.currentBid <= 0) {
       // If no bids placed, hammer as UNSOLD instead of failing
@@ -555,7 +615,8 @@ export const AuctionProvider = ({ children }) => {
     }
 
     try {
-      const res = await api.hammerSold(auctionDbId);
+      const res = await api.hammerSold(targetAuctionId);
+      if (!isCurrentAuction(targetAuctionId)) return;
       const winningPrice = activeLot.currentBid;
       const winningTeamId = currentHighestTeam.id || currentHighestTeam._id;
 
@@ -645,17 +706,21 @@ export const AuctionProvider = ({ children }) => {
         }
       }
     } catch (err) {
+      if (!isCurrentAuction(targetAuctionId)) return;
       console.error('[BidX Engine] Failed to hammer sold:', err.message);
       alert(`Hammer Sold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, activeLot.highestBidderTeamId, players, auctionDbId, activeTournament.timerSeconds]);
+  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, activeLot.highestBidderTeamId, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
 
   // Action: Hammer UNSOLD (Authoritative Backend Execution)
   const hammerUnsold = useCallback(async () => {
     if (!currentLotPlayer) return;
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
 
     try {
-      const res = await api.hammerUnsold(auctionDbId);
+      const res = await api.hammerUnsold(targetAuctionId);
+      if (!isCurrentAuction(targetAuctionId)) return;
       setPlayers(prev => prev.map(p => 
         (p.id === currentLotPlayer.id || p._id === currentLotPlayer.id) ? { ...p, status: 'UNSOLD' } : p
       ));
@@ -718,18 +783,22 @@ export const AuctionProvider = ({ children }) => {
         }
       }
     } catch (err) {
+      if (!isCurrentAuction(targetAuctionId)) return;
       console.error('[BidX Engine] Failed to hammer unsold:', err.message);
       alert(`Hammer Unsold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, players, auctionDbId, activeTournament.timerSeconds]);
+  }, [currentLotPlayer, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
 
   // Action: Select Specific Player onto live block (Authoritative Backend Execution)
   const selectPlayerLot = useCallback(async (playerId) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     const targetPlayer = players.find(p => p.id === playerId || p._id === playerId);
     if (!targetPlayer) return;
 
     try {
-      await api.selectLot(auctionDbId, targetPlayer._id || targetPlayer.id);
+      await api.selectLot(targetAuctionId, targetPlayer._id || targetPlayer.id);
+      if (!isCurrentAuction(targetAuctionId)) return;
 
       setPlayers(prev => prev.map(p => 
         (p.id === playerId || p._id === playerId) 
@@ -747,6 +816,7 @@ export const AuctionProvider = ({ children }) => {
         bidHistory: []
       });
     } catch (err) {
+      if (!isCurrentAuction(targetAuctionId)) return;
       console.warn('[BidX Engine] Live select lot error:', err.message);
       setActiveLot({
         playerId: targetPlayer.id || targetPlayer._id,
@@ -758,12 +828,15 @@ export const AuctionProvider = ({ children }) => {
         bidHistory: []
       });
     }
-  }, [players, auctionDbId, activeTournament.timerSeconds]);
+  }, [players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
 
   // Action: Select Next Random Lot onto live block
   const selectRandomLot = useCallback(async () => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, reason: 'Select a tournament first.' };
     try {
-      const res = await api.selectRandomLot(auctionDbId);
+      const res = await api.selectRandomLot(targetAuctionId);
+      if (!isCurrentAuction(targetAuctionId)) return { success: false, reason: 'Tournament changed while selecting a player.' };
       if (res?.success && res.data?.player) {
         const nextPlayer = res.data.player;
         const nextId = nextPlayer._id || nextPlayer.id;
@@ -803,15 +876,19 @@ export const AuctionProvider = ({ children }) => {
       console.error('[BidX Engine] Failed to select random lot:', err.message);
       return { success: false, reason: err.message };
     }
-  }, [auctionDbId, players, currentLotPlayer, selectPlayerLot, activeTournament.timerSeconds]);
+  }, [auctionDbId, players, currentLotPlayer, selectPlayerLot, activeTournament.timerSeconds, isCurrentAuction]);
 
   // Action: Undo Last Bid (Authoritative Backend Execution)
   const undoLastBid = useCallback(async () => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     try {
-      await api.undoBid(auctionDbId);
+      await api.undoBid(targetAuctionId);
     } catch (err) {
       console.warn('[BidX Engine] Undo bid API warning:', err.message);
     }
+
+    if (!isCurrentAuction(targetAuctionId)) return;
 
     if (activeLot.bidHistory.length === 0) return;
     const history = [...activeLot.bidHistory];
@@ -825,25 +902,29 @@ export const AuctionProvider = ({ children }) => {
       bidCount: Math.max(0, prev.bidCount - 1),
       bidHistory: history
     }));
-  }, [auctionDbId, activeLot.bidHistory, currentLotPlayer]);
+  }, [auctionDbId, activeLot.bidHistory, currentLotPlayer, isCurrentAuction]);
 
   // Action: Re-queue Unsold player
   const reQueueUnsold = useCallback(async (playerId) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     try {
       await api.updatePlayer(playerId, { status: 'QUEUED' });
     } catch (err) {
       console.warn('[BidX Engine] Requeue API warning:', err.message);
     }
+    if (!isCurrentAuction(targetAuctionId)) return;
     setPlayers(prev => prev.map(p => 
       (p.id === playerId || p._id === playerId) ? { ...p, status: 'QUEUED' } : p
     ));
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Submit Public Player Registration
   const registerPlayer = useCallback(async (registrationData, slug = 'cpl-2026') => {
+    const targetAuctionId = auctionDbId;
     try {
       const res = await api.registerSelf(slug, registrationData);
-      if (res?.success && res.data) {
+      if (isCurrentAuction(targetAuctionId) && res?.success && res.data) {
         const newReg = {
           ...res.data,
           id: res.data._id,
@@ -858,10 +939,12 @@ export const AuctionProvider = ({ children }) => {
       console.error('[BidX Context] Registration error:', err);
       throw err;
     }
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Review & Approve Registration
   const approveRegistration = useCallback(async (regId, basePrice, category) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.reviewRegistration(regId, {
         status: 'APPROVED',
@@ -869,6 +952,7 @@ export const AuctionProvider = ({ children }) => {
         assignedCategory: category
       });
 
+      if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data?.player) {
         const createdPlayer = {
           ...res.data.player,
@@ -883,10 +967,12 @@ export const AuctionProvider = ({ children }) => {
       console.warn('[BidX Context] Registration review failed:', err.message);
       return { success: false, error: err.message };
     }
-  }, [registrations, players.length, auctionDbId]);
+  }, [registrations, players.length, auctionDbId, isCurrentAuction]);
 
   // Action: Reject Registration
   const rejectRegistration = useCallback(async (regId, reason = 'Application rejected by committee.') => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     try {
       await api.reviewRegistration(regId, {
         status: 'REJECTED',
@@ -895,16 +981,20 @@ export const AuctionProvider = ({ children }) => {
     } catch (err) {
       console.warn('[BidX Context] Reject registration API failed:', err.message);
     }
+    if (!isCurrentAuction(targetAuctionId)) return;
     setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Create Player directly into Auction Roster
   const createPlayer = useCallback(async (playerData) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.createPlayer({
         ...playerData,
-        auctionId: auctionDbId
+        auctionId: targetAuctionId
       });
+      if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data) {
         const newP = {
           ...res.data,
@@ -917,7 +1007,7 @@ export const AuctionProvider = ({ children }) => {
       console.warn('[BidX Context] Create player API failed:', err.message);
       return { success: false, error: err.message };
     }
-  }, [auctionDbId, players.length]);
+  }, [auctionDbId, players.length, isCurrentAuction]);
 
   // Action: Add Tournament (Authoritative Backend Execution)
   const createTournament = useCallback(async (data) => {
@@ -942,7 +1032,7 @@ export const AuctionProvider = ({ children }) => {
     try {
       const res = await api.updateAuctionStatus(auctionId, status);
       if (res?.success) {
-        setTournaments(prev => prev.map(t => (t.id === auctionId || t._id === auctionId) ? { ...t, status } : t));
+        setTournaments(prev => prev.map(t => String(t.id || t._id) === String(auctionId) ? { ...t, status } : t));
         return { success: true };
       }
       return { success: false, error: res?.error || 'Failed to update status' };
@@ -957,7 +1047,22 @@ export const AuctionProvider = ({ children }) => {
     try {
       const res = await api.deleteAuction(auctionId);
       if (res?.success) {
-        setTournaments(prev => prev.filter(t => t.id !== auctionId && t._id !== auctionId));
+        const targetId = String(auctionId);
+        setTournaments(prev => prev.filter(t => String(t.id || t._id) !== targetId));
+        if (String(activeTournamentIdRef.current) === targetId) {
+          selectionRequestRef.current += 1;
+          setActiveTournamentIdState(null);
+          activeTournamentIdRef.current = null;
+          setAuctionDbId(null);
+          auctionIdRef.current = null;
+          clearStoredTournamentId();
+          setTeams([]);
+          setPlayers([]);
+          setRegistrations([]);
+          setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
+          setSelectionError('');
+          setIsLiveLoading(false);
+        }
         return { success: true };
       }
       return { success: false, error: res?.error || 'Failed to delete auction' };
@@ -969,11 +1074,14 @@ export const AuctionProvider = ({ children }) => {
 
   // Action: Add Team (Authoritative Backend Execution)
   const createTeam = useCallback(async (data) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.createTeam({
         ...data,
-        auctionId: auctionDbId
+        auctionId: targetAuctionId
       });
+      if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data) {
         const newTeam = {
           ...res.data,
@@ -986,22 +1094,28 @@ export const AuctionProvider = ({ children }) => {
       console.warn('[BidX Context] Create team API failed:', err.message);
       return { success: false, error: err.message };
     }
-  }, [auctionDbId]);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Delete Team
   const deleteTeam = useCallback(async (teamId) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     try {
       await api.deleteTeam(teamId);
     } catch (err) {
       console.warn('[BidX Context] Delete team API error:', err.message);
     }
+    if (!isCurrentAuction(targetAuctionId)) return;
     setTeams(prev => prev.filter(t => t.id !== teamId && t._id !== teamId));
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Assign Fixed / Retained Player to Team
   const assignFixedPlayer = useCallback(async (teamId, payload) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.addFixedPlayer(teamId, payload);
+      if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data) {
         const { team: updatedTeam, player: updatedPlayer } = res.data;
         const tId = updatedTeam._id || updatedTeam.id;
@@ -1024,12 +1138,15 @@ export const AuctionProvider = ({ children }) => {
       console.error('[AuctionContext] assignFixedPlayer error:', err);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Remove Fixed / Retained Player from Team
   const unassignFixedPlayer = useCallback(async (teamId, playerId) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.removeFixedPlayer(teamId, playerId);
+      if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data) {
         const { team: updatedTeam, player: updatedPlayer } = res.data;
         const tId = updatedTeam._id || updatedTeam.id;
@@ -1045,23 +1162,28 @@ export const AuctionProvider = ({ children }) => {
       console.error('[AuctionContext] unassignFixedPlayer error:', err);
       return { success: false, error: err.message };
     }
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Delete Player
   const deletePlayer = useCallback(async (playerId) => {
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return;
     try {
       await api.deletePlayer(playerId);
     } catch (err) {
       console.warn('[BidX Context] Delete player API error:', err.message);
     }
+    if (!isCurrentAuction(targetAuctionId)) return;
     setPlayers(prev => prev.filter(p => p.id !== playerId && p._id !== playerId));
-  }, []);
+  }, [auctionDbId, isCurrentAuction]);
 
   // Action: Bulk Import Players (Authoritative Backend Execution)
   const importPlayers = useCallback(async (file) => {
-    if (!auctionDbId) return { success: false, error: 'Select an auction before importing players.' };
+    const targetAuctionId = auctionDbId;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament before importing players.' };
     try {
-      const result = await api.importPlayers(file, auctionDbId);
+      const result = await api.importPlayers(file, targetAuctionId);
+      if (!isCurrentAuction(targetAuctionId)) return result;
       if (result?.success && result.data?.players) {
         const imported = result.data.players.map(player => ({ ...player, id: player._id }));
         setPlayers(prev => [...prev, ...imported]);
@@ -1070,13 +1192,16 @@ export const AuctionProvider = ({ children }) => {
     } catch (error) {
       return { success: false, error: error.message };
     }
-  }, [auctionDbId]);
+  }, [auctionDbId, isCurrentAuction]);
 
   return (
     <AuctionContext.Provider value={{
       tournaments,
+      activeTournamentId,
       activeTournament,
       setActiveTournamentId,
+      loadPublicTournament,
+      selectionError,
       createTournament,
       updateTournamentStatus,
       deleteTournament,
