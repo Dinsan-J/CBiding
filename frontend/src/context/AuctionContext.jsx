@@ -147,6 +147,14 @@ export const AuctionProvider = ({ children }) => {
       if (!teamsResult?.success || !Array.isArray(teamsResult.data)) throw new Error(teamsResult?.error || 'Could not load this tournament’s teams.');
       if (!playersResult?.success || !Array.isArray(playersResult.data)) throw new Error(playersResult?.error || 'Could not load this tournament’s players.');
 
+      const activationResult = await api.setActiveAuction(targetId);
+      if (requestId !== selectionRequestRef.current) {
+        const latestSelectionId = activeTournamentIdRef.current;
+        if (latestSelectionId) await api.setActiveAuction(latestSelectionId).catch(() => {});
+        return;
+      }
+      if (!activationResult?.success) throw new Error(activationResult?.error || 'Could not set the active tournament for this workspace.');
+
       const { auction } = liveResult.data;
       const loadedTeams = teamsResult.data;
       const loadedPlayers = playersResult.data;
@@ -200,8 +208,7 @@ export const AuctionProvider = ({ children }) => {
     }
   }, []);
 
-  const loadPublicTournament = useCallback(async (slug) => {
-    if (!slug) return;
+  const loadPublicTournament = useCallback(async (slug = null) => {
     const requestId = ++selectionRequestRef.current;
     setSelectionError('');
     setActiveTournamentIdState(null);
@@ -214,7 +221,21 @@ export const AuctionProvider = ({ children }) => {
     setActiveLot({ playerId: null, currentBid: 0, highestBidderTeamId: null, bidCount: 0, timerSeconds: 30, isTimerRunning: false, bidHistory: [] });
     setIsLiveLoading(true);
     try {
-      const result = await api.getPublicBroadcast(slug);
+      let result;
+      if (slug) {
+        result = await api.getPublicBroadcast(slug);
+      } else {
+        let activeAuction = null;
+        try {
+          activeAuction = await api.getPublicActiveAuction();
+        } catch {
+          // Older deployments may not have a saved tenant-wide tournament yet.
+        }
+        const fallbackSlug = import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
+        result = activeAuction?.data?.slug
+          ? await api.getPublicBroadcast(activeAuction.data.slug)
+          : await api.getPublicBroadcast(fallbackSlug);
+      }
       if (requestId !== selectionRequestRef.current) return;
       if (!result?.success || !result.data?.auction) throw new Error(result?.error || 'Could not load this tournament.');
       const { auction, teams: loadedTeams = [], players: loadedPlayers = [] } = result.data;
@@ -243,7 +264,6 @@ export const AuctionProvider = ({ children }) => {
         isTimerRunning: Boolean(auction.currentLot?.isTimerRunning),
         bidHistory: []
       });
-      storeTournamentId(id);
     } catch (error) {
       if (requestId === selectionRequestRef.current) {
         setSelectionError(error.message || 'Could not load this tournament.');
@@ -275,7 +295,7 @@ export const AuctionProvider = ({ children }) => {
           return;
         }
         setTournaments(list);
-        const savedId = getStoredTournamentId();
+        const savedId = privateAuctions.activeAuctionId || getStoredTournamentId();
         const savedTournament = list.find(t => String(t._id || t.id) === String(savedId));
         if (savedTournament) {
           await setActiveTournamentId(savedTournament._id || savedTournament.id);

@@ -3,6 +3,8 @@ const router = express.Router();
 const {
   getAuctions,
   getAuctionBySlug,
+  getPublicActiveAuction,
+  setActiveAuction,
   createAuction,
   updateAuction,
   updateAuctionStatus,
@@ -13,6 +15,7 @@ const { protect } = require('../middlewares/auth');
 const { enforceTenant } = require('../middlewares/tenantMiddleware');
 
 // Public spectator endpoints
+router.get('/public/active', getPublicActiveAuction);
 router.get('/public/:slug', getPublicAuctionBroadcast);
 router.get('/:slug', getAuctionBySlug);
 
@@ -23,6 +26,8 @@ router.use(enforceTenant);
 router.route('/')
   .get(getAuctions)
   .post(createAuction);
+
+router.put('/active', setActiveAuction);
 
 router.route('/:id')
   .put(updateAuction)

@@ -36,6 +36,11 @@ const tenantSchema = new mongoose.Schema(
       logoUrl: { type: String, default: '' },
       primaryColor: { type: String, default: '#06B6D4' },
       accentColor: { type: String, default: '#10B981' }
+    },
+    activeAuctionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Auction',
+      default: null
     }
   },
   { timestamps: true }

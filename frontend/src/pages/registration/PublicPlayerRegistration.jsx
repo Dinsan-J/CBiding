@@ -23,10 +23,8 @@ export const PublicPlayerRegistration = () => {
   const { activeTournament, registerPlayer, loadPublicTournament } = useAuction();
   const targetSlug = slug || activeTournament?.slug || import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
   useEffect(() => {
-    if (targetSlug && activeTournament?.slug !== targetSlug) {
-      loadPublicTournament(targetSlug).catch(() => {});
-    }
-  }, [targetSlug, loadPublicTournament]);
+    loadPublicTournament(slug || null).catch(() => {});
+  }, [slug, loadPublicTournament]);
 
   // Form State
   const [formData, setFormData] = useState({

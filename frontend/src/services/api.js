@@ -59,7 +59,13 @@ export const api = {
   // Auctions
   getAuctions: () => request('/auctions'),
   getAuctionBySlug: (slug) => request(`/auctions/${slug}`),
+  getPublicActiveAuction: () => request('/auctions/public/active'),
   getPublicBroadcast: (slug) => request(`/auctions/public/${slug}`),
+  setActiveAuction: (auctionId) =>
+    request('/auctions/active', {
+      method: 'PUT',
+      body: JSON.stringify({ auctionId })
+    }),
   createAuction: (data) => 
     request('/auctions', {
       method: 'POST',

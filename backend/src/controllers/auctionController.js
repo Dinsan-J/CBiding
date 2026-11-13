@@ -1,4 +1,6 @@
+const mongoose = require('mongoose');
 const Auction = require('../models/Auction');
+const Tenant = require('../models/Tenant');
 const Team = require('../models/Team');
 const Player = require('../models/Player');
 const Bid = require('../models/Bid');
@@ -20,12 +22,94 @@ exports.getAuctions = async (req, res, next) => {
 
     const auctions = await Auction.find(query)
       .sort({ createdAt: -1 });
+    const tenant = req.tenantId ? await Tenant.findById(req.tenantId).select('activeAuctionId') : null;
 
     res.status(200).json({
       success: true,
       count: auctions.length,
+      activeAuctionId: tenant?.activeAuctionId || null,
       data: auctions
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Set the tenant-wide tournament used by the workspace and public home page
+// @route   PUT /api/auctions/active
+// @access  Private (Organiser)
+exports.setActiveAuction = async (req, res, next) => {
+  try {
+    const { auctionId } = req.body;
+    if (!auctionId || !mongoose.Types.ObjectId.isValid(auctionId)) {
+      return res.status(400).json({ success: false, error: 'A valid tournament ID is required.' });
+    }
+
+    const auction = await Auction.findById(auctionId);
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'Tournament not found.' });
+    }
+
+    const tenantId = req.tenantId || (req.user?.role === 'SUPER_ADMIN' ? auction.tenantId : null);
+    if (!tenantId || String(auction.tenantId) !== String(tenantId)) {
+      return res.status(404).json({ success: false, error: 'Tournament not found for this workspace.' });
+    }
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ success: false, error: 'Workspace not found.' });
+    }
+
+    tenant.activeAuctionId = auction._id;
+    await tenant.save();
+
+    res.status(200).json({
+      success: true,
+      data: { activeAuctionId: auction._id }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get the selected public tournament for a tenant
+// @route   GET /api/auctions/public/active
+// @access  Public
+exports.getPublicActiveAuction = async (req, res, next) => {
+  try {
+    let tenant = null;
+    const tenantSlug = req.query.tenant || process.env.PUBLIC_TENANT_SLUG;
+
+    if (tenantSlug) {
+      tenant = await Tenant.findOne({ slug: tenantSlug, status: 'ACTIVE' });
+    } else {
+      const selectedTenants = await Tenant.find({
+        status: 'ACTIVE',
+        activeAuctionId: { $exists: true, $ne: null }
+      }).limit(2);
+
+      if (selectedTenants.length === 1) {
+        tenant = selectedTenants[0];
+      } else if (selectedTenants.length === 0) {
+        const activeTenants = await Tenant.find({ status: 'ACTIVE' }).limit(2);
+        if (activeTenants.length === 1) tenant = activeTenants[0];
+      }
+    }
+
+    if (!tenant?.activeAuctionId) {
+      return res.status(404).json({ success: false, error: 'No public tournament has been selected.' });
+    }
+
+    const auction = await Auction.findOne({
+      _id: tenant.activeAuctionId,
+      tenantId: tenant._id
+    }).select('_id slug title status type currency currencyNotation startingPurse minSquadSize maxSquadSize maxOverseasPlayers minBasePrice timerSeconds currentLot');
+
+    if (!auction) {
+      return res.status(404).json({ success: false, error: 'The selected tournament could not be found.' });
+    }
+
+    res.status(200).json({ success: true, data: auction });
   } catch (error) {
     next(error);
   }
@@ -253,6 +337,7 @@ exports.deleteAuction = async (req, res, next) => {
       });
     }
 
+    await Tenant.updateMany({ activeAuctionId: auction._id }, { $set: { activeAuctionId: null } });
     await Team.deleteMany({ auctionId: auction._id });
     await Player.deleteMany({ auctionId: auction._id });
     await auction.deleteOne();

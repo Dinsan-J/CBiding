@@ -9,12 +9,10 @@ export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
   const { slug } = useParams();
   const { tournaments, activeTournament, loadPublicTournament } = useAuction();
-  const publicSlug = slug || (!activeTournament?.id ? (import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026') : '');
+  const shouldLoadTournament = slug ? activeTournament?.slug !== slug : !activeTournament?.id;
   useEffect(() => {
-    if (publicSlug && activeTournament?.slug !== publicSlug) {
-      loadPublicTournament(publicSlug).catch(() => {});
-    }
-  }, [publicSlug, loadPublicTournament]);
+    if (shouldLoadTournament) loadPublicTournament(slug || null).catch(() => {});
+  }, [slug, shouldLoadTournament, loadPublicTournament]);
 
   const currentTournament = tournament || (
     slug
