@@ -197,8 +197,8 @@ export const LiveAuctionCockpit = () => {
           {/* Team Bidding Grid Skeleton */}
           <div className="space-y-2">
             <Skeleton className="h-4 w-48 rounded-lg" />
-            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))' }}>
-              {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 10rem), 1fr))' }}>
+              {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="aspect-square rounded-xl" />)}
             </div>
           </div>
 
@@ -473,7 +473,7 @@ export const LiveAuctionCockpit = () => {
 
           <div
             className="grid min-w-0 gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))' }}
+            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 10rem), 1fr))' }}
           >
             {teams.map((team) => {
               const teamKey = team.id || team._id;
@@ -484,11 +484,14 @@ export const LiveAuctionCockpit = () => {
               return (
                 <motion.button
                   key={teamKey}
-                  whileHover={canAfford ? { scale: 1.02 } : {}}
-                  whileTap={canAfford ? { scale: 0.97 } : {}}
+                  whileHover={canAfford ? {
+                    boxShadow: isLeading ? '0 0 22px rgba(6,182,212,0.3)' : '0 8px 18px rgba(2,6,23,0.35)',
+                    borderColor: isLeading ? 'rgba(6,182,212,0.9)' : 'rgba(148,163,184,0.55)'
+                  } : {}}
+                  whileTap={canAfford ? { filter: 'brightness(1.12)' } : {}}
                   disabled={!canAfford}
                   onClick={() => handleTeamBid(teamKey)}
-                  className={`relative min-w-0 min-h-32 p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`relative min-w-0 aspect-square p-3 rounded-xl border text-left transition-colors duration-200 cursor-pointer flex flex-col justify-between ${
                     isLeading 
                       ? 'bg-brand-cyan/15 border-brand-cyan shadow-glow-cyan/30' 
                       : canAfford 
