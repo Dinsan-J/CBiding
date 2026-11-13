@@ -58,11 +58,15 @@ export const AuctionProvider = ({ children }) => {
   });
 
   // Active Lot Player Object - strictly resolve active lot or live player, NEVER a sold or retained player
+  // Use String() conversion everywhere to prevent ObjectId vs string mismatches
   const currentLotPlayer = activeLot.playerId
-    ? (players.find(p => (p.id === activeLot.playerId || p._id === activeLot.playerId) && p.status !== 'SOLD' && p.status !== 'RETAINED' && !p.winningTeamId) || null)
-    : (players.find(p => p.status === 'LIVE' && p.status !== 'SOLD' && !p.winningTeamId) || availablePlayers[0] || null);
+    ? (players.find(p =>
+        (String(p.id) === String(activeLot.playerId) || String(p._id) === String(activeLot.playerId)) &&
+        p.status !== 'SOLD' && p.status !== 'RETAINED' && !p.winningTeamId
+      ) || null)
+    : (players.find(p => p.status === 'LIVE' && p.status !== 'SOLD' && !p.winningTeamId) || null);
 
-  const currentHighestTeam = teams.find(t => t.id === activeLot.highestBidderTeamId || t._id === activeLot.highestBidderTeamId);
+  const currentHighestTeam = teams.find(t => String(t.id) === String(activeLot.highestBidderTeamId) || String(t._id) === String(activeLot.highestBidderTeamId));
 
   // Timer Tick Engine
   useEffect(() => {
@@ -127,9 +131,12 @@ export const AuctionProvider = ({ children }) => {
             })));
           }
           if (auction?.currentLot?.playerId) {
-            const curPId = auction.currentLot.playerId._id || auction.currentLot.playerId;
-            const pObj = livePlayers?.find(p => p._id === curPId || p.id === curPId);
+            // Always use String() to avoid Mongoose ObjectId vs plain string mismatch
+            const rawPId = auction.currentLot.playerId?._id || auction.currentLot.playerId;
+            const curPId = String(rawPId);
+            const pObj = livePlayers?.find(p => String(p._id) === curPId || String(p.id) === curPId);
             if (pObj && (pObj.status === 'SOLD' || pObj.status === 'RETAINED' || pObj.winningTeamId)) {
+              // Player is already sold/retained — clear the active lot
               setActiveLot(prev => ({
                 ...prev,
                 playerId: null,
@@ -140,15 +147,37 @@ export const AuctionProvider = ({ children }) => {
                 bidHistory: []
               }));
             } else {
+              // Active player is legitimately on stage — set the lot with string IDs
+              const hBidTeamRaw = auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId;
               setActiveLot(prev => ({
                 ...prev,
                 playerId: curPId,
-                currentBid: auction.currentLot.currentBid || 0,
-                highestBidderTeamId: auction.currentLot.highestBidderTeamId?._id || auction.currentLot.highestBidderTeamId || null,
+                currentBid: auction.currentLot.currentBid || (pObj?.basePrice || 0),
+                highestBidderTeamId: hBidTeamRaw ? String(hBidTeamRaw) : null,
                 bidCount: auction.currentLot.bidCount || 0,
                 isTimerRunning: auction.currentLot.isTimerRunning || false
               }));
+              // Also ensure the LIVE player appears in players list (handles newly added players)
+              if (pObj) {
+                const updatedPObj = { ...pObj, id: curPId, status: pObj.status === 'QUEUED' ? 'LIVE' : pObj.status };
+                setPlayers(prev => {
+                  const exists = prev.some(p => String(p._id) === curPId || String(p.id) === curPId);
+                  if (exists) return prev.map(p => (String(p._id) === curPId || String(p.id) === curPId) ? { ...p, ...updatedPObj } : p);
+                  return [updatedPObj, ...prev];
+                });
+              }
             }
+          } else if (!auction?.currentLot?.playerId && auction?.status === 'LIVE') {
+            // Auction is LIVE but no current lot — clear stale lot state
+            setActiveLot(prev => ({
+              ...prev,
+              playerId: null,
+              currentBid: 0,
+              highestBidderTeamId: null,
+              bidCount: 0,
+              isTimerRunning: false,
+              bidHistory: []
+            }));
           }
 
           // Also fetch backend registrations
@@ -176,17 +205,18 @@ export const AuctionProvider = ({ children }) => {
 
     // 1. Live Bid Placed
     socket.on('bid_placed', ({ bid, team, player }) => {
+      const teamId = String(team._id || team.id);
       setActiveLot(prev => ({
         ...prev,
         currentBid: bid.amount,
-        highestBidderTeamId: team._id || team.id,
+        highestBidderTeamId: teamId,
         bidCount: bid.bidSequence || prev.bidCount + 1,
         timerSeconds: 30,
         isTimerRunning: true,
         bidHistory: [
           {
             id: bid._id || Date.now(),
-            teamId: team._id || team.id,
+            teamId,
             amount: bid.amount,
             timestamp: new Date(bid.timestamp || Date.now()).toLocaleTimeString()
           },
@@ -198,8 +228,8 @@ export const AuctionProvider = ({ children }) => {
     // 2. Lot Hammer SOLD
     socket.on('lot_sold', ({ player, team, acquisition, nextPlayer }) => {
       const winningPrice = acquisition?.finalBidAmount || activeLot.currentBid;
-      const teamId = team?._id || team?.id;
-      const playerId = player?._id || player?.id;
+      const teamId = String(team?._id || team?.id || '');
+      const playerId = String(player?._id || player?.id || '');
 
       setSoldEvent({
         isOpen: true,
@@ -208,15 +238,15 @@ export const AuctionProvider = ({ children }) => {
         finalBid: winningPrice
       });
 
-      setPlayers(prev => prev.map(p => 
-        (p.id === playerId || p._id === playerId) 
-          ? { ...p, status: 'SOLD', winningTeamId: teamId, finalPrice: winningPrice } 
+      setPlayers(prev => prev.map(p =>
+        (String(p.id) === playerId || String(p._id) === playerId)
+          ? { ...p, status: 'SOLD', winningTeamId: teamId, finalPrice: winningPrice }
           : p
       ));
 
       if (teamId) {
-        setTeams(prev => prev.map(t => 
-          (t.id === teamId || t._id === teamId)
+        setTeams(prev => prev.map(t =>
+          (String(t.id) === teamId || String(t._id) === teamId)
             ? {
                 ...t,
                 remainingPurse: t.remainingPurse - winningPrice,
@@ -228,7 +258,7 @@ export const AuctionProvider = ({ children }) => {
       }
 
       if (nextPlayer) {
-        const nextId = nextPlayer._id || nextPlayer.id;
+        const nextId = String(nextPlayer._id || nextPlayer.id);
         setActiveLot({
           playerId: nextId,
           currentBid: nextPlayer.basePrice || 0,
@@ -238,11 +268,17 @@ export const AuctionProvider = ({ children }) => {
           isTimerRunning: false,
           bidHistory: []
         });
-        setPlayers(prev => prev.map(p => 
-          (p.id === nextId || p._id === nextId)
-            ? { ...p, status: 'LIVE' }
-            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
-        ));
+        setPlayers(prev => {
+          const exists = prev.some(p => String(p._id) === nextId || String(p.id) === nextId);
+          const updated = prev.map(p => {
+            const pId = String(p._id || p.id);
+            if (pId === nextId) return { ...p, ...nextPlayer, id: nextId, status: 'LIVE' };
+            if (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED') return { ...p, status: 'QUEUED' };
+            return p;
+          });
+          if (!exists) return [{ ...nextPlayer, id: nextId, status: 'LIVE' }, ...updated];
+          return updated;
+        });
       } else {
         setActiveLot(prev => ({
           ...prev,
@@ -258,15 +294,15 @@ export const AuctionProvider = ({ children }) => {
 
     // 3. Lot Hammer UNSOLD
     socket.on('lot_unsold', ({ player, nextPlayer }) => {
-      const playerId = player?._id || player?.id;
+      const playerId = String(player?._id || player?.id || '');
       if (playerId) {
-        setPlayers(prev => prev.map(p => 
-          (p.id === playerId || p._id === playerId) ? { ...p, status: 'UNSOLD' } : p
+        setPlayers(prev => prev.map(p =>
+          (String(p.id) === playerId || String(p._id) === playerId) ? { ...p, status: 'UNSOLD' } : p
         ));
       }
 
       if (nextPlayer) {
-        const nextId = nextPlayer._id || nextPlayer.id;
+        const nextId = String(nextPlayer._id || nextPlayer.id);
         setActiveLot({
           playerId: nextId,
           currentBid: nextPlayer.basePrice || 0,
@@ -276,11 +312,17 @@ export const AuctionProvider = ({ children }) => {
           isTimerRunning: false,
           bidHistory: []
         });
-        setPlayers(prev => prev.map(p => 
-          (p.id === nextId || p._id === nextId)
-            ? { ...p, status: 'LIVE' }
-            : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
-        ));
+        setPlayers(prev => {
+          const exists = prev.some(p => String(p._id) === nextId || String(p.id) === nextId);
+          const updated = prev.map(p => {
+            const pId = String(p._id || p.id);
+            if (pId === nextId) return { ...p, ...nextPlayer, id: nextId, status: 'LIVE' };
+            if (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED') return { ...p, status: 'QUEUED' };
+            return p;
+          });
+          if (!exists) return [{ ...nextPlayer, id: nextId, status: 'LIVE' }, ...updated];
+          return updated;
+        });
       } else {
         setActiveLot(prev => ({
           ...prev,
@@ -297,7 +339,7 @@ export const AuctionProvider = ({ children }) => {
     // 4. Next Lot Selected
     socket.on('lot_selected', ({ player }) => {
       if (!player) return;
-      const playerId = player._id || player.id;
+      const playerId = String(player._id || player.id);
       setActiveLot({
         playerId,
         currentBid: player.basePrice || 0,
@@ -307,11 +349,18 @@ export const AuctionProvider = ({ children }) => {
         isTimerRunning: false,
         bidHistory: []
       });
-      setPlayers(prev => prev.map(p => 
-        (p.id === playerId || p._id === playerId)
-          ? { ...p, status: 'LIVE' }
-          : (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED' ? { ...p, status: 'QUEUED' } : p)
-      ));
+      setPlayers(prev => {
+        const exists = prev.some(p => String(p._id) === playerId || String(p.id) === playerId);
+        const updated = prev.map(p => {
+          const pId = String(p._id || p.id);
+          if (pId === playerId) return { ...p, ...player, id: playerId, status: 'LIVE' };
+          if (p.status === 'LIVE' && p.status !== 'SOLD' && p.status !== 'RETAINED') return { ...p, status: 'QUEUED' };
+          return p;
+        });
+        // If this is a brand-new player not yet in the local list, add it
+        if (!exists) return [{ ...player, id: playerId, status: 'LIVE' }, ...updated];
+        return updated;
+      });
     });
 
     // 5. Bid Undone
