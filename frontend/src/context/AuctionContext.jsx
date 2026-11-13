@@ -27,10 +27,11 @@ export const AuctionProvider = ({ children }) => {
   // Active Live Lot Engine State
   const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
 
-  // Available un-auctioned players
+  // Available un-auctioned players — UNSOLD excluded until explicitly re-queued
   const availablePlayers = players.filter(p => 
     p.status !== 'SOLD' && 
     p.status !== 'RETAINED' && 
+    p.status !== 'UNSOLD' &&
     !p.winningTeamId && 
     !p.isFixedPlayer
   );

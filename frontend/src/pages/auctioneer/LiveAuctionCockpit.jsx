@@ -59,10 +59,11 @@ export const LiveAuctionCockpit = () => {
   // Dynamic Increment Options
   const incrementOptions = [500, 1000, 1500, 2000, 2500];
 
-  // Next queued un-auctioned players
+  // Next queued un-auctioned players — UNSOLD players stay in Unsold tab only until explicitly re-queued
   const queuedPlayers = players.filter(p => 
     p.status !== 'SOLD' && 
     p.status !== 'RETAINED' && 
+    p.status !== 'UNSOLD' &&
     !p.isFixedPlayer && 
     !p.winningTeamId && 
     p.id !== currentLotPlayer?.id && 
