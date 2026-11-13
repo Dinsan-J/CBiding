@@ -10,6 +10,7 @@ import { TabGroup } from '../../components/ui/TabGroup';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { staggerContainer, staggerItem } from '../../utils/motion';
+import { getPlayerWinningTeam } from '../../utils/playerTeams';
 
 export const PublicPlayersDirectory = () => {
   const { players, teams, activeTournament } = useAuction();
@@ -122,7 +123,7 @@ export const PublicPlayersDirectory = () => {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
         >
           {filteredPlayers.map((player) => {
-            const team = teams.find(t => t.id === player.winningTeamId);
+            const team = getPlayerWinningTeam(player, teams);
             const isSold = player.status === 'SOLD';
             const isUnsold = player.status === 'UNSOLD';
             const isLive = player.status === 'LIVE';

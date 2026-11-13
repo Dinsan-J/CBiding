@@ -1,4 +1,5 @@
 import { formatExactCurrency, getRoleLabel } from './formatters';
+import { getPlayerWinningTeam } from './playerTeams';
 
 const escapeHtml = (value) => String(value ?? '')
   .replaceAll('&', '&amp;')
@@ -6,12 +7,6 @@ const escapeHtml = (value) => String(value ?? '')
   .replaceAll('>', '&gt;')
   .replaceAll('"', '&quot;')
   .replaceAll("'", '&#39;');
-
-const getPlayerTeam = (player, teams) => {
-  const winningTeam = player.winningTeamId;
-  if (winningTeam && typeof winningTeam === 'object') return winningTeam;
-  return teams.find(team => String(team._id || team.id) === String(winningTeam)) || null;
-};
 
 export const openAuctionPdf = ({ tournament, teams, players }) => {
   const printWindow = window.open('', '_blank', 'width=1100,height=800');
@@ -33,7 +28,7 @@ export const openAuctionPdf = ({ tournament, teams, players }) => {
   const playerRows = [...players]
     .sort((left, right) => (Number(left.lotNumber) || 0) - (Number(right.lotNumber) || 0))
     .map(player => {
-      const team = getPlayerTeam(player, teams);
+      const team = getPlayerWinningTeam(player, teams);
       return `
         <tr>
           <td class="number">${escapeHtml(player.lotNumber || '-')}</td>

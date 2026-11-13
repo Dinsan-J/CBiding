@@ -23,6 +23,7 @@ import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { playerBelongsToTeam } from '../../utils/playerTeams';
 
 export const TeamsManager = () => {
   const { 
@@ -261,7 +262,7 @@ export const TeamsManager = () => {
         {teams.map((team) => {
           const teamKey = team.id || team._id;
           const acquiredPlayers = players.filter(p => 
-            (p.winningTeamId === teamKey || p.winningTeamId === team._id || p.winningTeamId === team.id || String(p.winningTeamId) === String(teamKey)) &&
+            playerBelongsToTeam(p, team) &&
             (p.status === 'SOLD' || p.status === 'RETAINED')
           );
           const fixedPlayers = acquiredPlayers.filter(p => p.isFixedPlayer || p.retentionType === 'FIXED_RETENTION');

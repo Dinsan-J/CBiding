@@ -3,6 +3,7 @@ import { Trophy, BarChart3, Users } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
 import { Card } from '../../components/ui/Card';
 import { formatCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
+import { getPlayerWinningTeam } from '../../utils/playerTeams';
 
 export const PublicAuctionStats = () => {
   const { teams, players, activeTournament } = useAuction();
@@ -50,7 +51,7 @@ export const PublicAuctionStats = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             {topBuys.map((player, index) => {
-              const team = teams.find(t => t.id === player.winningTeamId || t._id === player.winningTeamId || String(t.id || t._id) === String(player.winningTeamId));
+              const team = getPlayerWinningTeam(player, teams);
               const rankMedals = ['#F59E0B', '#94A3B8', '#B45309']; // Gold, Silver, Bronze
 
               return (

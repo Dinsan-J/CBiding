@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Gavel, 
@@ -57,8 +57,8 @@ export const LiveAuctionCockpit = () => {
   // Active increment step selection (Default 500 as requested: 500, 1000, 1500, 2000, 2500)
   const [selectedIncrement, setSelectedIncrement] = useState(500);
   const [isConfirmSoldOpen, setIsConfirmSoldOpen] = useState(false);
+  const [isConfirmUnsoldOpen, setIsConfirmUnsoldOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'bids', 'unsold'
-  const lastEnterAtRef = useRef(0);
 
   // Dynamic Increment Options
   const incrementOptions = [500, 1000, 1500, 2000, 2500];
@@ -90,56 +90,49 @@ export const LiveAuctionCockpit = () => {
   // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (e.code !== 'Enter') lastEnterAtRef.current = 0;
       const target = e.target;
-      if (target instanceof HTMLElement && target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
-      if (isConfirmSoldOpen) return;
       if (e.repeat) return;
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, [contenteditable="true"]')) return;
+
+      if (isConfirmSoldOpen && e.code === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        setIsConfirmSoldOpen(false);
+        hammerSold();
+        return;
+      }
+      if (isConfirmUnsoldOpen && e.code === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        setIsConfirmUnsoldOpen(false);
+        hammerUnsold();
+        return;
+      }
+      if (isConfirmSoldOpen || isConfirmUnsoldOpen) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
         toggleTimer();
       } else if (e.code === 'Enter') {
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
         e.preventDefault();
         if (e.shiftKey) {
-          lastEnterAtRef.current = 0;
-          hammerUnsold();
-          return;
-        }
-        if (e.ctrlKey || e.altKey || e.metaKey) return;
-
-        const now = Date.now();
-        if (lastEnterAtRef.current && now - lastEnterAtRef.current <= 650) {
-          lastEnterAtRef.current = 0;
-          if (currentHighestTeam) hammerSold();
-          else toast.error('Place a bid before hammering the player sold.');
+          setIsConfirmUnsoldOpen(true);
+        } else if (currentHighestTeam) {
+          setIsConfirmSoldOpen(true);
         } else {
-          lastEnterAtRef.current = now;
-          if (currentHighestTeam) toast.info('Press Enter again within 650 ms to hammer sold.');
-          else toast.error('Place a bid before hammering the player sold.');
-          window.setTimeout(() => {
-            if (lastEnterAtRef.current === now) lastEnterAtRef.current = 0;
-          }, 700);
+          toast.error('Place a bid before hammering the player sold.');
         }
       } else if (e.key === 'u' || e.key === 'U') {
-        lastEnterAtRef.current = 0;
-        hammerUnsold();
+        setIsConfirmUnsoldOpen(true);
       } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
-        lastEnterAtRef.current = 0;
         undoLastBid();
-      } else {
-        lastEnterAtRef.current = 0;
       }
     };
-    const resetEnterSequence = () => { lastEnterAtRef.current = 0; };
 
     window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('pointerdown', resetEnterSequence);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('pointerdown', resetEnterSequence);
     };
-  }, [toggleTimer, currentHighestTeam, hammerSold, hammerUnsold, undoLastBid, isConfirmSoldOpen, toast]);
+  }, [toggleTimer, currentHighestTeam, hammerSold, hammerUnsold, undoLastBid, isConfirmSoldOpen, isConfirmUnsoldOpen, toast]);
 
   // ── SKELETON LOADING STATE (shows while backend data is syncing on page refresh) ──
   if (isLiveLoading) {
@@ -542,7 +535,7 @@ export const LiveAuctionCockpit = () => {
               variant="outline"
               size="sm"
               leftIcon={SkipForward}
-              onClick={hammerUnsold}
+              onClick={() => setIsConfirmUnsoldOpen(true)}
               className="flex-1 sm:flex-initial"
             >
               Skip
@@ -551,7 +544,7 @@ export const LiveAuctionCockpit = () => {
               variant="danger"
               size="sm"
               leftIcon={AlertTriangle}
-              onClick={hammerUnsold}
+              onClick={() => setIsConfirmUnsoldOpen(true)}
               className="flex-1 sm:flex-initial"
             >
               UNSOLD (U)
@@ -560,7 +553,7 @@ export const LiveAuctionCockpit = () => {
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <span className="text-xs text-slate-400 hidden xl:inline">
-              Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Enter × 2</kbd> = Sold, <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Shift+Enter</kbd> = Unsold
+              Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Enter</kbd> = Confirm SOLD, <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Shift+Enter</kbd> = Confirm UNSOLD
             </span>
             <Button
               variant="gold"
@@ -754,7 +747,7 @@ export const LiveAuctionCockpit = () => {
         isOpen={isConfirmSoldOpen}
         onClose={() => setIsConfirmSoldOpen(false)}
         title="Confirm Hammer SOLD"
-        subtitle="Finalize sale contract and award player to franchise."
+        subtitle="Finalize sale contract and award player to franchise. Press Enter to confirm."
       >
         <div className="space-y-4">
           <div className="bg-surface-accent p-4 rounded-xl border border-border-subtle flex items-center justify-between">
@@ -789,6 +782,37 @@ export const LiveAuctionCockpit = () => {
               className="font-bold shadow-glow-gold"
             >
               Strike Gavel SOLD
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* CONFIRM UNSOLD MODAL */}
+      <Modal
+        isOpen={isConfirmUnsoldOpen}
+        onClose={() => setIsConfirmUnsoldOpen(false)}
+        title="Confirm Player UNSOLD"
+        subtitle="Mark this player unsold and move to the next lot. Press Enter to confirm."
+      >
+        <div className="space-y-4">
+          <div className="bg-surface-accent p-4 rounded-xl border border-border-subtle">
+            <p className="text-xs text-slate-400">Current player</p>
+            <h4 className="text-lg font-bold text-white">{currentLotPlayer?.fullName || 'No active player'}</h4>
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-subtle">
+            <Button variant="outline" onClick={() => setIsConfirmUnsoldOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              leftIcon={AlertTriangle}
+              onClick={() => {
+                setIsConfirmUnsoldOpen(false);
+                hammerUnsold();
+              }}
+              className="font-bold"
+            >
+              Confirm UNSOLD
             </Button>
           </div>
         </div>

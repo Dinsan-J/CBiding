@@ -25,6 +25,7 @@ import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } 
 import { tabContentVariants } from '../../utils/motion';
 import { api } from '../../services/api';
 import { useToast } from '../../context/ToastContext';
+import { getPlayerWinningTeam } from '../../utils/playerTeams';
 
 export const PlayersManager = () => {
   const { 
@@ -193,7 +194,7 @@ export const PlayersManager = () => {
   const handleExportCSV = () => {
     const headers = "Lot Number,Player Name,Role,Base Price,Status,Winning Team,Final Price\n";
     const rows = players.map(p => {
-      const team = teams.find(t => t.id === p.winningTeamId);
+      const team = getPlayerWinningTeam(p, teams);
       return `${p.lotNumber},"${p.fullName}","${getRoleLabel(p.role)}",${p.basePrice},${p.status},"${team ? team.name : ''}",${p.finalPrice || ''}`;
     }).join("\n");
 
@@ -292,7 +293,7 @@ export const PlayersManager = () => {
                 </thead>
                 <tbody className="divide-y divide-border-subtle text-slate-200">
                   {filteredPlayers.map((player) => {
-                    const team = teams.find(t => t.id === player.winningTeamId || t._id === player.winningTeamId || String(t.id || t._id) === String(player.winningTeamId));
+                    const team = getPlayerWinningTeam(player, teams);
                     return (
                       <tr key={player.id || player._id} className="hover:bg-surface-accent/40 transition-colors">
                         <td className="py-3 px-4 font-mono font-bold text-slate-400">

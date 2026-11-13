@@ -21,6 +21,7 @@ import { TeamMark } from '../../components/ui/TeamMark';
 import { SoldCelebration } from '../../components/ui/SoldCelebration';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { Link } from 'react-router-dom';
+import { getPlayerWinningTeam } from '../../utils/playerTeams';
 
 export const PublicLiveTracker = () => {
   const {
@@ -299,7 +300,7 @@ export const PublicLiveTracker = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {recentSold.map((player) => {
-            const team = teams.find(t => t.id === player.winningTeamId);
+            const team = getPlayerWinningTeam(player, teams);
             return (
               <Card key={player.id} className="p-4 bg-surface-card border-border-subtle hover:border-slate-500 transition-colors">
                 <div className="flex items-center justify-between mb-2">

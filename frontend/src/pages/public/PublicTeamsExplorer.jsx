@@ -7,6 +7,7 @@ import { Badge } from '../../components/ui/Badge';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { TeamMark } from '../../components/ui/TeamMark';
 import { accordionVariants } from '../../utils/motion';
+import { playerBelongsToTeam } from '../../utils/playerTeams';
 
 export const PublicTeamsExplorer = () => {
   const { teams, players, activeTournament } = useAuction();
@@ -32,7 +33,7 @@ export const PublicTeamsExplorer = () => {
         {teams.map((team) => {
           const teamId = team.id || team._id;
           const acquiredPlayers = players.filter(p => 
-            (p.winningTeamId === teamId || p.winningTeamId === team._id || p.winningTeamId === team.id || String(p.winningTeamId) === String(teamId)) && 
+            playerBelongsToTeam(p, team) &&
             p.status === 'SOLD'
           );
           const isExpanded = expandedTeamId === teamId;
