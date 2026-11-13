@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Trophy } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
+import { useToast } from '../../context/ToastContext';
 
 export const TournamentSelector = ({ compact = false }) => {
   const {
@@ -9,6 +10,7 @@ export const TournamentSelector = ({ compact = false }) => {
     setActiveTournamentId,
     isLiveLoading
   } = useAuction();
+  const { toast } = useToast();
   const [error, setError] = useState('');
 
   const handleChange = async (event) => {
@@ -17,8 +19,10 @@ export const TournamentSelector = ({ compact = false }) => {
     setError('');
     try {
       await setActiveTournamentId(id);
+      toast.success('Tournament workspace changed.');
     } catch (loadError) {
       setError(loadError.message || 'Could not load this tournament.');
+      toast.error(loadError.message || 'Could not load this tournament.');
     }
   };
 

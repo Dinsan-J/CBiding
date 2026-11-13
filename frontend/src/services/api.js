@@ -1,5 +1,8 @@
 // BidX API Client Service
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://bidx-backend-gepi.onrender.com/api';
+const publicTenantQuery = () => import.meta.env.VITE_PUBLIC_TENANT_SLUG
+  ? `?tenant=${encodeURIComponent(import.meta.env.VITE_PUBLIC_TENANT_SLUG)}`
+  : '';
 
 const getAuthToken = () => {
   try {
@@ -59,7 +62,8 @@ export const api = {
   // Auctions
   getAuctions: () => request('/auctions'),
   getAuctionBySlug: (slug) => request(`/auctions/${slug}`),
-  getPublicActiveAuction: () => request('/auctions/public/active'),
+  getPublicActiveAuction: () => request(`/auctions/public/active${publicTenantQuery()}`),
+  getPublicAuctions: () => request(`/auctions/public/list${publicTenantQuery()}`),
   getPublicBroadcast: (slug) => request(`/auctions/public/${slug}`),
   setActiveAuction: (auctionId) =>
     request('/auctions/active', {

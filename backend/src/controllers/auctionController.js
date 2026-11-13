@@ -6,6 +6,21 @@ const Player = require('../models/Player');
 const Bid = require('../models/Bid');
 const { resolveAuction } = require('../utils/resolveAuction');
 
+const resolvePublicTenant = async (tenantSlug) => {
+  const configuredSlug = tenantSlug || process.env.PUBLIC_TENANT_SLUG;
+  if (configuredSlug) return Tenant.findOne({ slug: configuredSlug, status: 'ACTIVE' });
+
+  const selectedTenants = await Tenant.find({
+    status: 'ACTIVE',
+    activeAuctionId: { $exists: true, $ne: null }
+  }).limit(2);
+  if (selectedTenants.length === 1) return selectedTenants[0];
+  if (selectedTenants.length > 1) return null;
+
+  const activeTenants = await Tenant.find({ status: 'ACTIVE' }).limit(2);
+  return activeTenants.length === 1 ? activeTenants[0] : null;
+};
+
 // @desc    Get all auctions for tenant
 // @route   GET /api/auctions
 // @access  Private (Organiser)
@@ -77,24 +92,7 @@ exports.setActiveAuction = async (req, res, next) => {
 // @access  Public
 exports.getPublicActiveAuction = async (req, res, next) => {
   try {
-    let tenant = null;
-    const tenantSlug = req.query.tenant || process.env.PUBLIC_TENANT_SLUG;
-
-    if (tenantSlug) {
-      tenant = await Tenant.findOne({ slug: tenantSlug, status: 'ACTIVE' });
-    } else {
-      const selectedTenants = await Tenant.find({
-        status: 'ACTIVE',
-        activeAuctionId: { $exists: true, $ne: null }
-      }).limit(2);
-
-      if (selectedTenants.length === 1) {
-        tenant = selectedTenants[0];
-      } else if (selectedTenants.length === 0) {
-        const activeTenants = await Tenant.find({ status: 'ACTIVE' }).limit(2);
-        if (activeTenants.length === 1) tenant = activeTenants[0];
-      }
-    }
+    const tenant = await resolvePublicTenant(req.query.tenant);
 
     if (!tenant?.activeAuctionId) {
       return res.status(404).json({ success: false, error: 'No public tournament has been selected.' });
@@ -110,6 +108,29 @@ exports.getPublicActiveAuction = async (req, res, next) => {
     }
 
     res.status(200).json({ success: true, data: auction });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    List public tournaments available for live viewing and history
+// @route   GET /api/auctions/public/list
+// @access  Public
+exports.getPublicAuctions = async (req, res, next) => {
+  try {
+    const tenant = await resolvePublicTenant(req.query.tenant);
+    if (!tenant) {
+      return res.status(404).json({ success: false, error: 'Public tournament history is not configured for this workspace.' });
+    }
+
+    const auctions = await Auction.find({
+      tenantId: tenant._id,
+      status: { $ne: 'DRAFT' }
+    })
+      .select('_id slug title status type currency currencyNotation createdAt completedAt')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, count: auctions.length, data: auctions });
   } catch (error) {
     next(error);
   }

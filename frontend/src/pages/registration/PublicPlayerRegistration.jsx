@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
+import { useToast } from '../../context/ToastContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Card } from '../../components/ui/Card';
@@ -21,10 +22,11 @@ import { Badge } from '../../components/ui/Badge';
 export const PublicPlayerRegistration = () => {
   const { slug } = useParams();
   const { activeTournament, registerPlayer, loadPublicTournament } = useAuction();
+  const { toast } = useToast();
   const targetSlug = slug || activeTournament?.slug || import.meta.env.VITE_PUBLIC_AUCTION_SLUG || 'cpl-2026';
   useEffect(() => {
-    loadPublicTournament(slug || null).catch(() => {});
-  }, [slug, loadPublicTournament]);
+    loadPublicTournament(slug || null).catch(error => toast.error(error.message || 'Could not load this tournament.'));
+  }, [slug, loadPublicTournament, toast]);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -92,9 +94,12 @@ export const PublicPlayerRegistration = () => {
 
       await registerPlayer(payload, targetSlug);
       setIsSubmitted(true);
+      toast.success('Player registration submitted for review.');
     } catch (err) {
       console.error('[Registration Form] Error:', err);
-      setErrorMessage(err.message || 'Could not submit registration. Please verify your details.');
+      const message = err.message || 'Could not submit registration. Please verify your details.';
+      setErrorMessage(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -109,7 +114,7 @@ export const PublicPlayerRegistration = () => {
           </div>
           <h2 className="text-2xl font-bold text-white">Registration Submitted!</h2>
           <p className="text-sm text-slate-300 mt-2">
-            Your player profile for <strong>{activeTournament?.title || 'the selected tournament'}</strong> has been registered. The tournament committee will review your statistics and assign your auction category.
+            Your player profile for <strong>{activeTournament?.title || 'the selected tournament'}</strong> has been registered. The tournament committee will review your player details and set a base price.
           </p>
           <div className="p-4 bg-surface-accent rounded-xl border border-border-subtle my-6 text-left text-xs space-y-1">
             <p><span className="text-slate-400">Player:</span> <strong className="text-white">{formData.fullName}</strong></p>

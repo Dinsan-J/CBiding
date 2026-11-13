@@ -146,7 +146,6 @@ exports.addFixedPlayer = async (req, res, next) => {
       bowlingStyle = 'None',
       country = 'Sri Lanka', 
       isOverseas = false, 
-      category = 'CATEGORY_A', 
       basePrice,
       photoUrl,
       stats
@@ -248,7 +247,6 @@ exports.addFixedPlayer = async (req, res, next) => {
         bowlingStyle,
         isOverseas: Boolean(isOverseas),
         country: isOverseas ? (country || 'Overseas') : (country || 'Sri Lanka'),
-        category,
         basePrice: playerBase,
         status: 'SOLD',
         isFixedPlayer: true,

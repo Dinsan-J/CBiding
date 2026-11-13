@@ -38,7 +38,6 @@ exports.importPlayers = async (req, res, next) => {
       'SPIN ALL ROUNDER': 'SPIN_ALL_ROUNDER', 'FAST BOWLER': 'FAST_BOWLER', 'SPIN BOWLER': 'SPIN_BOWLER'
     };
     const validRoles = new Set(Object.values(roleAliases));
-    const validCategories = new Set(['MARQUEE', 'CATEGORY_A', 'CATEGORY_B', 'CATEGORY_C', 'EMERGING']);
     const errors = [];
     const docs = [];
     const lotStart = await Player.countDocuments({ auctionId: auction._id });
@@ -48,8 +47,6 @@ exports.importPlayers = async (req, res, next) => {
       const fullName = String(get(row, 'fullName', 'playerName', 'name') || '').trim();
       const rawRole = String(get(row, 'role', 'playingRole') || 'TOP_ORDER_BATTER').trim().toUpperCase().replace(/[_-]+/g, ' ');
       const role = roleAliases[rawRole] || rawRole.replace(/\s+/g, '_');
-      const rawCategory = String(get(row, 'category', 'tier') || 'CATEGORY_A').trim().toUpperCase().replace(/\s+/g, '_');
-      const category = validCategories.has(rawCategory) ? rawCategory : 'CATEGORY_A';
       const age = Number(get(row, 'age')) || 25;
       const priceValue = get(row, 'basePrice', 'basePriceLkr', 'basePricePoints');
       const basePrice = priceValue === undefined ? auction.minBasePrice : Number(priceValue);
@@ -65,7 +62,6 @@ exports.importPlayers = async (req, res, next) => {
         battingStyle: String(get(row, 'battingStyle') || 'RIGHT_HAND').toUpperCase().replace(/\s+/g, '_'),
         bowlingStyle: String(get(row, 'bowlingStyle') || 'None'),
         age,
-        category,
         basePrice,
         isOverseas: truthy(get(row, 'isOverseas', 'overseas')),
         country: String(get(row, 'country') || 'Sri Lanka'),

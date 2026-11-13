@@ -64,11 +64,6 @@ const playerSchema = new mongoose.Schema(
     },
 
     // Auction Tier
-    category: { 
-      type: String, 
-      enum: ['MARQUEE', 'CATEGORY_A', 'CATEGORY_B', 'CATEGORY_C', 'EMERGING'], 
-      default: 'CATEGORY_A' 
-    },
     basePrice: { type: Number, default: 0 },
 
     // Lifecycle Status

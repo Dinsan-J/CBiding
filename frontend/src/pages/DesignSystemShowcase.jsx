@@ -180,7 +180,6 @@ export const DesignSystemShowcase = () => {
                 <Badge variant="gold" dot>MARQUEE</Badge>
                 <Badge variant="crimson" dot>UNSOLD</Badge>
                 <Badge variant="purple" dot>OVERSEAS</Badge>
-                <Badge variant="default">CATEGORY A</Badge>
                 <Badge variant="outline">SCHEDULED</Badge>
               </div>
 

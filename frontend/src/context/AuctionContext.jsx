@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../services/api';
 import { getSocket, joinAuctionRoom, leaveAuctionRoom } from '../services/socket';
+import { useToast } from './ToastContext';
 
 const AuctionContext = createContext(null);
 const ACTIVE_TOURNAMENT_STORAGE_KEY = 'bidx_active_tournament_id';
@@ -20,6 +21,7 @@ const normalizeAuction = auction => ({
 });
 
 export const AuctionProvider = ({ children }) => {
+  const { toast } = useToast();
   // Tournaments State
   const [tournaments, setTournaments] = useState([]);
   const [activeTournamentId, setActiveTournamentIdState] = useState(null);
@@ -613,7 +615,8 @@ export const AuctionProvider = ({ children }) => {
         }));
         return { success: true };
       }
-      return { success: true };
+      if (rollbackSnapshot && isCurrentAuction(targetAuctionId)) setActiveLot(rollbackSnapshot);
+      return { success: false, reason: res?.error || 'Bid was not accepted by the auction engine.' };
     } catch (err) {
       console.warn('[BidX Engine] Backend rejected bid:', err.message);
       if (rollbackSnapshot && isCurrentAuction(targetAuctionId)) {
@@ -728,9 +731,9 @@ export const AuctionProvider = ({ children }) => {
     } catch (err) {
       if (!isCurrentAuction(targetAuctionId)) return;
       console.error('[BidX Engine] Failed to hammer sold:', err.message);
-      alert(`Hammer Sold failed: ${err.message}`);
+      toast.error(`Hammer Sold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, activeLot.highestBidderTeamId, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
+  }, [currentLotPlayer, currentHighestTeam, activeLot.currentBid, activeLot.highestBidderTeamId, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction, toast]);
 
   // Action: Hammer UNSOLD (Authoritative Backend Execution)
   const hammerUnsold = useCallback(async () => {
@@ -802,12 +805,13 @@ export const AuctionProvider = ({ children }) => {
           }));
         }
       }
+      toast.success(`${currentLotPlayer.fullName} marked unsold.`);
     } catch (err) {
       if (!isCurrentAuction(targetAuctionId)) return;
       console.error('[BidX Engine] Failed to hammer unsold:', err.message);
-      alert(`Hammer Unsold failed: ${err.message}`);
+      toast.error(`Hammer Unsold failed: ${err.message}`);
     }
-  }, [currentLotPlayer, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction]);
+  }, [currentLotPlayer, players, auctionDbId, activeTournament.timerSeconds, isCurrentAuction, toast]);
 
   // Action: Select Specific Player onto live block (Authoritative Backend Execution)
   const selectPlayerLot = useCallback(async (playerId) => {
@@ -929,15 +933,19 @@ export const AuctionProvider = ({ children }) => {
     const targetAuctionId = auctionDbId;
     if (!targetAuctionId) return;
     try {
-      await api.updatePlayer(playerId, { status: 'QUEUED' });
+      const result = await api.updatePlayer(playerId, { status: 'QUEUED' });
+      if (!result?.success) throw new Error(result?.error || 'Could not return player to the queue.');
     } catch (err) {
       console.warn('[BidX Engine] Requeue API warning:', err.message);
+      toast.error(err.message || 'Could not return player to the queue.');
+      return;
     }
     if (!isCurrentAuction(targetAuctionId)) return;
     setPlayers(prev => prev.map(p => 
       (p.id === playerId || p._id === playerId) ? { ...p, status: 'QUEUED' } : p
     ));
-  }, [auctionDbId, isCurrentAuction]);
+    toast.success('Player returned to the auction queue.');
+  }, [auctionDbId, isCurrentAuction, toast]);
 
   // Action: Submit Public Player Registration
   const registerPlayer = useCallback(async (registrationData, slug = 'cpl-2026') => {
@@ -962,15 +970,16 @@ export const AuctionProvider = ({ children }) => {
   }, [auctionDbId, isCurrentAuction]);
 
   // Action: Review & Approve Registration
-  const approveRegistration = useCallback(async (regId, basePrice, category) => {
+  const approveRegistration = useCallback(async (regId, basePrice) => {
     const targetAuctionId = auctionDbId;
     if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
       const res = await api.reviewRegistration(regId, {
         status: 'APPROVED',
-        assignedBasePrice: Number(basePrice),
-        assignedCategory: category
+        assignedBasePrice: Number(basePrice)
       });
+
+      if (!res?.success) return { success: false, error: res?.error || 'Could not approve registration.' };
 
       if (!isCurrentAuction(targetAuctionId)) return { success: true };
       if (res?.success && res.data?.player) {
@@ -994,15 +1003,18 @@ export const AuctionProvider = ({ children }) => {
     const targetAuctionId = auctionDbId;
     if (!targetAuctionId) return;
     try {
-      await api.reviewRegistration(regId, {
+      const result = await api.reviewRegistration(regId, {
         status: 'REJECTED',
         rejectionReason: reason
       });
+      if (!result?.success) return { success: false, error: result?.error || 'Could not reject registration.' };
     } catch (err) {
       console.warn('[BidX Context] Reject registration API failed:', err.message);
+      return { success: false, error: err.message };
     }
-    if (!isCurrentAuction(targetAuctionId)) return;
+    if (!isCurrentAuction(targetAuctionId)) return { success: true };
     setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
+    return { success: true };
   }, [auctionDbId, isCurrentAuction]);
 
   // Action: Create Player directly into Auction Roster
@@ -1119,14 +1131,17 @@ export const AuctionProvider = ({ children }) => {
   // Action: Delete Team
   const deleteTeam = useCallback(async (teamId) => {
     const targetAuctionId = auctionDbId;
-    if (!targetAuctionId) return;
+    if (!targetAuctionId) return { success: false, error: 'Select a tournament first.' };
     try {
-      await api.deleteTeam(teamId);
+      const result = await api.deleteTeam(teamId);
+      if (!result?.success) return { success: false, error: result?.error || 'Could not delete team.' };
     } catch (err) {
       console.warn('[BidX Context] Delete team API error:', err.message);
+      return { success: false, error: err.message };
     }
-    if (!isCurrentAuction(targetAuctionId)) return;
+    if (!isCurrentAuction(targetAuctionId)) return { success: true };
     setTeams(prev => prev.filter(t => t.id !== teamId && t._id !== teamId));
+    return { success: true };
   }, [auctionDbId, isCurrentAuction]);
 
   // Action: Assign Fixed / Retained Player to Team

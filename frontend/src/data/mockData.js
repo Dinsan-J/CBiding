@@ -166,7 +166,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 27,
-    category: "MARQUEE",
     basePrice: 5000000,
     status: "SOLD",
     winningTeamId: "team-cls",
@@ -185,7 +184,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 23,
-    category: "MARQUEE",
     basePrice: 5000000,
     status: "SOLD",
     winningTeamId: "team-jfk",
@@ -204,7 +202,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 29,
-    category: "MARQUEE",
     basePrice: 4000000,
     status: "SOLD",
     winningTeamId: "team-kfl",
@@ -223,7 +220,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 26,
-    category: "MARQUEE",
     basePrice: 4000000,
     status: "SOLD",
     winningTeamId: "team-glt",
@@ -242,7 +238,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 27,
-    category: "CATEGORY_A",
     basePrice: 3000000,
     status: "SOLD",
     winningTeamId: "team-dba",
@@ -261,7 +256,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 33,
-    category: "CATEGORY_A",
     basePrice: 3000000,
     status: "UNSOLD",
     stats: { matches: 218, runs: 4120, wickets: 78, battingAverage: 27.2, strikeRate: 141.0, economy: 8.65, highestScore: "108*", bestBowling: "4/20" }
@@ -277,7 +271,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 24,
-    category: "CATEGORY_A",
     basePrice: 3500000,
     status: "LIVE", // CURRENT CONTENDER ON LIVE FLOOR
     stats: { matches: 140, runs: 180, wickets: 165, battingAverage: 8.1, strikeRate: 92.0, economy: 6.48, highestScore: "22", bestBowling: "4/18" }
@@ -293,7 +286,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 21,
-    category: "EMERGING",
     basePrice: 1500000,
     status: "QUEUED",
     stats: { matches: 58, runs: 760, wickets: 62, battingAverage: 22.4, strikeRate: 118.0, economy: 6.9, highestScore: "67*", bestBowling: "5/40" }
@@ -309,7 +301,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 24,
-    category: "CATEGORY_A",
     basePrice: 3000000,
     status: "QUEUED",
     stats: { matches: 62, runs: 30, wickets: 86, battingAverage: 4.5, strikeRate: 70.0, economy: 7.95, highestScore: "9", bestBowling: "5/80" }
@@ -325,7 +316,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: false,
     country: "Sri Lanka",
     age: 30,
-    category: "CATEGORY_B",
     basePrice: 2000000,
     status: "QUEUED",
     stats: { matches: 96, runs: 85, wickets: 130, battingAverage: 7.0, strikeRate: 80.0, economy: 7.7, highestScore: "15", bestBowling: "5/20" }
@@ -341,7 +331,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: true,
     country: "Zimbabwe",
     age: 38,
-    category: "CATEGORY_A",
     basePrice: 3000000,
     status: "QUEUED",
     stats: { matches: 245, runs: 5120, wickets: 178, battingAverage: 28.6, strikeRate: 134.5, economy: 7.15, highestScore: "87", bestBowling: "4/8" }
@@ -357,7 +346,6 @@ export const INITIAL_PLAYERS = [
     isOverseas: true,
     country: "West Indies",
     age: 31,
-    category: "CATEGORY_A",
     basePrice: 3500000,
     status: "QUEUED",
     stats: { matches: 210, runs: 4100, wickets: 32, battingAverage: 26.8, strikeRate: 148.9, economy: 8.9, highestScore: "107", bestBowling: "3/25" }

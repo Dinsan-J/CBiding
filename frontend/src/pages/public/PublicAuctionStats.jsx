@@ -1,8 +1,7 @@
 import React from 'react';
-import { Trophy, TrendingUp, DollarSign, Award, BarChart3, PieChart } from 'lucide-react';
+import { Trophy, BarChart3, Users } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
 import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
 import { formatCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 
 export const PublicAuctionStats = () => {
@@ -14,13 +13,6 @@ export const PublicAuctionStats = () => {
 
   // Franchise Spending Leaderboard
   const sortedTeamsBySpend = [...teams].sort((a, b) => b.totalSpent - a.totalSpent);
-
-  // Category Spending
-  const categorySpend = soldPlayers.reduce((acc, p) => {
-    const cat = p.category || 'CATEGORY_A';
-    acc[cat] = (acc[cat] || 0) + p.finalPrice;
-    return acc;
-  }, {});
 
   // Role Count Breakdown
   const roleCounts = soldPlayers.reduce((acc, p) => {
@@ -38,7 +30,7 @@ export const PublicAuctionStats = () => {
           Official Tournament Auction Statistics
         </h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Cricbuzz-inspired real-time financial leaderboards, marquee acquisitions, and franchise allocations.
+          Review player purchases, role totals, and franchise spending for this tournament.
         </p>
       </div>
 
@@ -75,9 +67,6 @@ export const PublicAuctionStats = () => {
                     >
                       #{index + 1}
                     </span>
-                    <Badge variant={index === 0 ? 'gold' : 'cyan'}>
-                      {player.category || 'MARQUEE'}
-                    </Badge>
                   </div>
 
                   <div className="my-2 text-center">
@@ -108,7 +97,7 @@ export const PublicAuctionStats = () => {
         )}
       </div>
 
-      {/* TWO COLUMN GRID: TEAM SPENDING & CATEGORY BREAKDOWN */}
+      {/* TEAM SPENDING & PLAYER ROLE SUMMARY */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Franchise Spending Utilization */}
         <Card className="p-5 space-y-4">
@@ -158,48 +147,28 @@ export const PublicAuctionStats = () => {
           </div>
         </Card>
 
-        {/* Category & Role Breakdown */}
+        {/* Role Breakdown */}
         <Card className="p-5 space-y-5">
           <div className="flex items-center justify-between border-b border-border-subtle pb-3">
             <h3 className="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              <PieChart className="w-4 h-4 text-brand-emerald" />
-              Category Expenditure Share
+              <Users className="w-4 h-4 text-brand-emerald" />
+              Player Roles
             </h3>
             <span className="text-xs text-slate-400 font-mono">
               {soldPlayers.length} Lots Sold
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(categorySpend).map(([cat, amount]) => (
-              <div key={cat} className="p-3 bg-canvas rounded-xl border border-border-subtle">
-                <span className="text-[10px] uppercase font-mono font-bold text-slate-400 block">
-                  {cat.replace('_', ' ')}
-                </span>
-                <div className="text-base font-mono font-bold text-white mt-1">
-                  {formatCurrency(amount, activeTournament.currency)}
-                </div>
-                <span className="text-[10px] text-slate-500 font-mono mt-0.5 block">
-                  {totalSpentAll > 0 ? Math.round((amount / totalSpentAll) * 100) : 0}% of turnover
-                </span>
-              </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(roleCounts).map(([role, count]) => (
+              <span
+                key={role}
+                className={`px-2.5 py-1 text-xs font-semibold rounded-lg border ${getRoleBadgeClass(role)}`}
+              >
+                {getRoleLabel(role)}: <strong className="font-mono text-white ml-1">{count}</strong>
+              </span>
             ))}
-          </div>
-
-          <div>
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
-              Role Distribution in Sold Lots
-            </h4>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(roleCounts).map(([role, count]) => (
-                <span 
-                  key={role}
-                  className={`px-2.5 py-1 text-xs font-semibold rounded-lg border ${getRoleBadgeClass(role)}`}
-                >
-                  {getRoleLabel(role)}: <strong className="font-mono text-white ml-1">{count}</strong>
-                </span>
-              ))}
-            </div>
+            {!Object.keys(roleCounts).length && <p className="text-xs text-slate-500">Role totals will appear after players are sold.</p>}
           </div>
         </Card>
       </div>

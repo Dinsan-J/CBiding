@@ -10,7 +10,7 @@ const AuditLog = require('../models/AuditLog');
 exports.getPlayersByAuction = async (req, res, next) => {
   try {
     const { auctionId } = req.params;
-    const { status, role, category, search } = req.query;
+    const { status, role, search } = req.query;
 
     let targetAuctionId = auctionId;
     if (!mongoose.Types.ObjectId.isValid(auctionId)) {
@@ -32,10 +32,6 @@ exports.getPlayersByAuction = async (req, res, next) => {
 
     if (role && role !== 'ALL') {
       query.role = role;
-    }
-
-    if (category && category !== 'ALL') {
-      query.category = category;
     }
 
     if (search) {
@@ -62,7 +58,7 @@ exports.getPlayersByAuction = async (req, res, next) => {
 // @access  Private (Organiser)
 exports.createPlayer = async (req, res, next) => {
   try {
-    const { auctionId, fullName, role, battingStyle, bowlingStyle, basePrice, category, lotNumber, stats, photoUrl, isOverseas, country, age } = req.body;
+    const { auctionId, fullName, role, battingStyle, bowlingStyle, basePrice, lotNumber, stats, photoUrl, isOverseas, country, age } = req.body;
 
     let auction = null;
     if (auctionId && mongoose.Types.ObjectId.isValid(auctionId)) {
@@ -92,7 +88,6 @@ exports.createPlayer = async (req, res, next) => {
       isOverseas: Boolean(isOverseas),
       country: country || 'Sri Lanka',
       age: age || 25,
-      category: category || 'CATEGORY_A',
       basePrice: basePrice || auction.minBasePrice || 1000000,
       stats: stats || {},
       status: 'QUEUED'
@@ -205,7 +200,7 @@ exports.getRegistrations = async (req, res, next) => {
 // @access  Private (Organiser)
 exports.reviewRegistration = async (req, res, next) => {
   try {
-    const { status, assignedCategory, assignedBasePrice, rejectionReason } = req.body;
+    const { status, assignedBasePrice, rejectionReason } = req.body;
 
     const registration = await PlayerRegistration.findOne({
       _id: req.params.id,
@@ -225,7 +220,6 @@ exports.reviewRegistration = async (req, res, next) => {
     registration.reviewedAt = new Date();
 
     if (status === 'APPROVED') {
-      registration.assignedCategory = assignedCategory || 'CATEGORY_A';
       registration.assignedBasePrice = assignedBasePrice || 100000;
       await registration.save();
 
@@ -242,7 +236,6 @@ exports.reviewRegistration = async (req, res, next) => {
         role: registration.role,
         battingStyle: registration.battingStyle,
         bowlingStyle: registration.bowlingStyle,
-        category: registration.assignedCategory,
         basePrice: registration.assignedBasePrice,
         stats: registration.stats,
         contactNumber: registration.contactNumber,

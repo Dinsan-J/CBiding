@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   getAuctions,
   getAuctionBySlug,
+  getPublicAuctions,
   getPublicActiveAuction,
   setActiveAuction,
   createAuction,
@@ -16,6 +17,7 @@ const { enforceTenant } = require('../middlewares/tenantMiddleware');
 
 // Public spectator endpoints
 router.get('/public/active', getPublicActiveAuction);
+router.get('/public/list', getPublicAuctions);
 router.get('/public/:slug', getPublicAuctionBroadcast);
 router.get('/:slug', getAuctionBySlug);
 

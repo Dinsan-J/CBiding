@@ -22,6 +22,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { api } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
 export const TeamsManager = () => {
   const { 
@@ -33,6 +34,7 @@ export const TeamsManager = () => {
     unassignFixedPlayer, 
     activeTournament 
   } = useAuction();
+  const { toast } = useToast();
 
   // Create Team Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -65,7 +67,6 @@ export const TeamsManager = () => {
     bowlingStyle: 'Right-arm medium',
     isOverseas: false,
     country: 'Sri Lanka',
-    category: 'CATEGORY_A',
     basePrice: 0,
     retentionPrice: 0,
     photoUrl: ''
@@ -116,20 +117,23 @@ export const TeamsManager = () => {
         ownerName: '',
         ownerContact: ''
       });
+      toast.success('Team added to the tournament.');
     } catch (error) {
-      alert(error.message || 'Could not create team.');
+      toast.error(error.message || 'Could not create team.');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = (teamId, teamName, squadCount) => {
+  const handleDelete = async (teamId, teamName, squadCount) => {
     if (squadCount > 0) {
-      alert(`Cannot delete ${teamName} because it already has ${squadCount} acquired/fixed players.`);
+      toast.error(`Cannot delete ${teamName} because it already has ${squadCount} acquired or fixed players.`);
       return;
     }
     if (window.confirm(`Are you sure you want to delete ${teamName}?`)) {
-      deleteTeam(teamId);
+      const result = await deleteTeam(teamId);
+      if (!result?.success) toast.error(result?.error || 'Could not delete team.');
+      else toast.success(`${teamName} deleted.`);
     }
   };
 
@@ -148,7 +152,6 @@ export const TeamsManager = () => {
       bowlingStyle: 'Right-arm medium',
       isOverseas: false,
       country: 'Sri Lanka',
-      category: 'CATEGORY_A',
       basePrice: 0,
       retentionPrice: 0,
       photoUrl: ''
@@ -182,7 +185,7 @@ export const TeamsManager = () => {
       let res;
       if (fixedTab === 'ROSTER') {
         if (!selectedRosterPlayerId) {
-          alert('Please select an athlete from the roster.');
+          toast.error('Please select a player from the roster.');
           return;
         }
         res = await assignFixedPlayer(teamId, {
@@ -191,7 +194,7 @@ export const TeamsManager = () => {
         });
       } else {
         if (!directForm.fullName.trim()) {
-          alert('Player full name is required.');
+          toast.error('Player full name is required.');
           return;
         }
         const photoUrl = directPlayerPhotoFile ? (await api.uploadImage(directPlayerPhotoFile)).data.url : '';
@@ -207,11 +210,12 @@ export const TeamsManager = () => {
         setIsFixedModalOpen(false);
         // Automatically expand this team's squad to show the newly added player
         setExpandedTeams(prev => ({ ...prev, [teamId]: true }));
+        toast.success(res.message || 'Fixed player assigned to the team.');
       } else {
-        alert(res?.error || 'Failed to assign fixed player');
+        toast.error(res?.error || 'Failed to assign fixed player');
       }
     } catch (err) {
-      alert(err.message || 'Error occurred while assigning fixed player');
+      toast.error(err.message || 'Error occurred while assigning fixed player');
     } finally {
       setIsAssigning(false);
     }
@@ -224,8 +228,8 @@ export const TeamsManager = () => {
     }
     const res = await unassignFixedPlayer(teamKey, playerId);
     if (!res.success) {
-      alert(res.error || 'Failed to remove fixed player');
-    }
+      toast.error(res.error || 'Failed to remove fixed player');
+    } else toast.success(res.message || 'Fixed player removed from the team.');
   };
 
   return (
@@ -584,7 +588,7 @@ export const TeamsManager = () => {
                     <div>
                       <span className="font-bold text-white block">{selectedRosterPlayer.fullName}</span>
                       <span className="text-[10px] text-slate-400">
-                        {getRoleLabel(selectedRosterPlayer.role)} • {selectedRosterPlayer.country} • {selectedRosterPlayer.category}
+                        {getRoleLabel(selectedRosterPlayer.role)} • {selectedRosterPlayer.country}
                       </span>
                     </div>
                     <Badge variant={selectedRosterPlayer.isOverseas ? 'purple' : 'cyan'}>
@@ -667,7 +671,7 @@ export const TeamsManager = () => {
                   onChange={(e) => setDirectForm({ ...directForm, fullName: e.target.value })}
                 />
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                       Playing Role *
@@ -687,22 +691,6 @@ export const TeamsManager = () => {
                     </select>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                      Category Tier *
-                    </label>
-                    <select
-                      value={directForm.category}
-                      onChange={(e) => setDirectForm({ ...directForm, category: e.target.value })}
-                      className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-sm text-slate-100"
-                    >
-                      <option value="MARQUEE">Marquee Icon</option>
-                      <option value="CATEGORY_A">Category A</option>
-                      <option value="CATEGORY_B">Category B</option>
-                      <option value="CATEGORY_C">Category C</option>
-                      <option value="EMERGING">Emerging Talent</option>
-                    </select>
-                  </div>
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">

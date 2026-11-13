@@ -7,6 +7,7 @@ import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency } from '../../utils/formatters';
+import { useToast } from '../../context/ToastContext';
 
 export const TournamentsManager = () => {
   const { 
@@ -17,6 +18,7 @@ export const TournamentsManager = () => {
     updateTournamentStatus, 
     deleteTournament 
   } = useAuction();
+  const { toast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [filter, setFilter] = useState('ALL');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -41,8 +43,8 @@ export const TournamentsManager = () => {
     setIsSubmitting(true);
     try {
       const res = await createTournament(form);
-      if (res && !res.success) {
-        alert(res.error || 'Failed to create tournament');
+      if (!res?.success) {
+        toast.error(res?.error || 'Failed to create tournament');
       } else {
         setIsModalOpen(false);
         setForm({
@@ -56,9 +58,10 @@ export const TournamentsManager = () => {
           minBasePrice: 50000,
           timerSeconds: 30
         });
+        toast.success('Tournament created.');
       }
     } catch (err) {
-      alert(err.message || 'Error creating tournament');
+      toast.error(err.message || 'Error creating tournament');
     } finally {
       setIsSubmitting(false);
     }
@@ -68,11 +71,11 @@ export const TournamentsManager = () => {
     setActionLoadingId(tournId);
     try {
       const res = await updateTournamentStatus(tournId, newStatus);
-      if (res && !res.success) {
-        alert(res.error || 'Failed to update status');
-      }
+      if (!res?.success) {
+        toast.error(res?.error || 'Failed to update status');
+      } else toast.success(`Tournament status changed to ${newStatus.toLowerCase()}.`);
     } catch (error) {
-      alert(error.message || 'Failed to update or load tournament.');
+      toast.error(error.message || 'Failed to update tournament status.');
     } finally {
       setActionLoadingId(null);
     }
@@ -80,7 +83,7 @@ export const TournamentsManager = () => {
 
   const handleDelete = async (tourn) => {
     if (tourn.status === 'LIVE') {
-      alert('Cannot delete a LIVE tournament auction. Change status to DRAFT or COMPLETED first.');
+      toast.error('A live tournament cannot be deleted. Change its status first.');
       return;
     }
     const tId = tourn.id || tourn._id;
@@ -90,9 +93,11 @@ export const TournamentsManager = () => {
     setActionLoadingId(tId);
     try {
       const res = await deleteTournament(tId);
-      if (res && !res.success) {
-        alert(res.error || 'Failed to delete tournament');
-      }
+      if (!res?.success) {
+        toast.error(res?.error || 'Failed to delete tournament');
+      } else toast.success('Tournament deleted.');
+    } catch (error) {
+      toast.error(error.message || 'Could not delete tournament.');
     } finally {
       setActionLoadingId(null);
     }
@@ -102,8 +107,9 @@ export const TournamentsManager = () => {
     setActionLoadingId(auctionId);
     try {
       await setActiveTournamentId(auctionId);
+      toast.success('Tournament workspace loaded.');
     } catch (error) {
-      alert(error.message || 'Could not load the selected tournament.');
+      toast.error(error.message || 'Could not load the selected tournament.');
     } finally {
       setActionLoadingId(null);
     }

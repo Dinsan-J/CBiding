@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuctionProvider } from './context/AuctionContext';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './context/ToastContext';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 
 // Layouts
@@ -32,9 +33,10 @@ import { DesignSystemShowcase } from './pages/DesignSystemShowcase';
 
 export function App() {
   return (
-    <AuthProvider>
-      <AuctionProvider>
-        <BrowserRouter>
+    <ToastProvider>
+      <AuthProvider>
+        <AuctionProvider>
+          <BrowserRouter>
           <Routes>
             {/* Public Spectator Live Experience at Root (bidxnew.vercel.app) */}
             <Route path="/" element={<PublicLayout />}>
@@ -105,9 +107,10 @@ export function App() {
             {/* Fallback to Public Live Floor */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
-      </AuctionProvider>
-    </AuthProvider>
+          </BrowserRouter>
+        </AuctionProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 

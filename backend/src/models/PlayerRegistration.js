@@ -64,11 +64,6 @@ const playerRegistrationSchema = new mongoose.Schema(
       default: 'PENDING',
       index: true 
     },
-    assignedCategory: { 
-      type: String, 
-      enum: ['MARQUEE', 'CATEGORY_A', 'CATEGORY_B', 'CATEGORY_C', 'EMERGING'],
-      default: 'CATEGORY_A' 
-    },
     assignedBasePrice: { type: Number, default: 100000 },
     rejectionReason: { type: String, default: '' },
     reviewedAt: { type: Date }

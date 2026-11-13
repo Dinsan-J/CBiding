@@ -24,6 +24,7 @@ import { Modal } from '../../components/ui/Modal';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { tabContentVariants } from '../../utils/motion';
 import { api } from '../../services/api';
+import { useToast } from '../../context/ToastContext';
 
 export const PlayersManager = () => {
   const { 
@@ -37,6 +38,7 @@ export const PlayersManager = () => {
     importPlayers, 
     activeTournament 
   } = useAuction();
+  const { toast } = useToast();
 
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get('tab') || 'roster'; // 'roster', 'approvals', 'import'
@@ -71,7 +73,6 @@ export const PlayersManager = () => {
     battingStyle: 'RIGHT_HAND',
     bowlingStyle: 'Right-arm medium',
     age: 24,
-    category: 'CATEGORY_A',
     basePrice: 1500000,
     photoUrl: '',
     isOverseas: false,
@@ -83,10 +84,7 @@ export const PlayersManager = () => {
   // Approval Modal State
   const [selectedReg, setSelectedReg] = useState(null);
   const [isApproving, setIsApproving] = useState(false);
-  const [approvalForm, setApprovalForm] = useState({
-    basePrice: 2000000,
-    category: 'CATEGORY_A'
-  });
+  const [approvalForm, setApprovalForm] = useState({ basePrice: 2000000 });
 
   // Bulk Import Simulation State
   const [importedData, setImportedData] = useState([]);
@@ -122,7 +120,6 @@ export const PlayersManager = () => {
         battingStyle: 'RIGHT_HAND',
         bowlingStyle: 'Right-arm medium',
         age: 24,
-        category: 'CATEGORY_A',
         basePrice: 1500000,
         photoUrl: '',
         isOverseas: false,
@@ -131,8 +128,9 @@ export const PlayersManager = () => {
       setAddPlayerPhotoFile(null);
       setAddPlayerPhotoPreview('');
       setActiveTab('roster');
+      toast.success('Player added to the tournament roster.');
     } catch (err) {
-      alert(err.message || 'Failed to create player.');
+      toast.error(err.message || 'Failed to create player.');
     } finally {
       setIsCreatingPlayer(false);
     }
@@ -143,12 +141,25 @@ export const PlayersManager = () => {
     if (!selectedReg) return;
     setIsApproving(true);
     try {
-      await approveRegistration(selectedReg.id || selectedReg._id, approvalForm.basePrice, approvalForm.category);
+      const result = await approveRegistration(selectedReg.id || selectedReg._id, approvalForm.basePrice);
+      if (!result?.success) throw new Error(result?.error || 'Could not approve player.');
       setSelectedReg(null);
+      toast.success('Player approved and added to the roster.');
     } catch (err) {
       console.error('Failed to approve registration:', err);
+      toast.error(err.message || 'Could not approve player.');
     } finally {
       setIsApproving(false);
+    }
+  };
+
+  const handleRejectRegistration = async (registrationId) => {
+    try {
+      const result = await rejectRegistration(registrationId);
+      if (!result?.success) throw new Error(result?.error || 'Could not reject registration.');
+      toast.success('Registration rejected.');
+    } catch (error) {
+      toast.error(error.message || 'Could not reject registration.');
     }
   };
 
@@ -168,8 +179,10 @@ export const PlayersManager = () => {
         errors: result.data?.errors || [],
         message: result.message
       });
+      toast.success(result.message || 'Player spreadsheet imported.');
     } catch (error) {
       setImportStatus({ filename: file.name, error: error.message });
+      toast.error(error.message || 'Could not import the player spreadsheet.');
     } finally {
       setIsImporting(false);
       e.target.value = '';
@@ -178,10 +191,10 @@ export const PlayersManager = () => {
 
   // CSV Export
   const handleExportCSV = () => {
-    const headers = "Lot Number,Player Name,Role,Category,Base Price,Status,Winning Team,Final Price\n";
+    const headers = "Lot Number,Player Name,Role,Base Price,Status,Winning Team,Final Price\n";
     const rows = players.map(p => {
       const team = teams.find(t => t.id === p.winningTeamId);
-      return `${p.lotNumber},"${p.fullName}","${getRoleLabel(p.role)}",${p.category},${p.basePrice},${p.status},"${team ? team.name : ''}",${p.finalPrice || ''}`;
+      return `${p.lotNumber},"${p.fullName}","${getRoleLabel(p.role)}",${p.basePrice},${p.status},"${team ? team.name : ''}",${p.finalPrice || ''}`;
     }).join("\n");
 
     const blob = new Blob([headers + rows], { type: 'text/csv' });
@@ -190,6 +203,7 @@ export const PlayersManager = () => {
     a.href = url;
     a.download = `BidX_${activeTournament.slug}_roster.csv`;
     a.click();
+    toast.success('Roster CSV downloaded.');
   };
 
   const filteredPlayers = players.filter(p => 
@@ -270,7 +284,6 @@ export const PlayersManager = () => {
                     <th className="py-3 px-4">Lot #</th>
                     <th className="py-3 px-4">Player</th>
                     <th className="py-3 px-4">Cricket Role</th>
-                    <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4 text-right">Base Price</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4">Franchise</th>
@@ -295,11 +308,6 @@ export const PlayersManager = () => {
                           <span className={`px-2 py-0.5 rounded border text-[10px] font-semibold ${getRoleBadgeClass(player.role)}`}>
                             {getRoleLabel(player.role)}
                           </span>
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          <Badge variant={player.category === 'MARQUEE' ? 'gold' : 'cyan'}>
-                            {player.category || 'CATEGORY A'}
-                          </Badge>
                         </td>
                         <td className="py-3 px-4 font-mono text-right font-semibold">
                           {formatCurrency(player.basePrice, activeTournament.currency)}
@@ -406,7 +414,7 @@ export const PlayersManager = () => {
                         size="xs"
                         variant="danger"
                         leftIcon={XCircle}
-                        onClick={() => rejectRegistration(reg.id || reg._id)}
+                        onClick={() => handleRejectRegistration(reg.id || reg._id)}
                       >
                         Reject
                       </Button>
@@ -417,10 +425,10 @@ export const PlayersManager = () => {
                         leftIcon={CheckCircle2}
                         onClick={() => {
                           setSelectedReg(reg);
-                          setApprovalForm({ basePrice: 2000000, category: 'CATEGORY_A' });
+                          setApprovalForm({ basePrice: 2000000 });
                         }}
                       >
-                        Approve & Set Tier
+                        Approve Player
                       </Button>
                     </div>
                   </Card>
@@ -444,7 +452,7 @@ export const PlayersManager = () => {
               <FileSpreadsheet className="w-14 h-14 text-brand-emerald mx-auto mb-3" />
               <h3 className="text-lg font-bold text-white">Import Player Roster from Excel / CSV</h3>
               <p className="text-xs text-slate-400 max-w-md mx-auto mt-1 mb-4">
-                Upload spreadsheets with columns: Full Name, Role, Batting Style, Bowling Style, Age, Base Price, Category.
+                Upload spreadsheets with columns: Full Name, Role, Batting Style, Bowling Style, Age, Base Price, Country, Overseas.
               </p>
 
               <label className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-slate-950 bg-brand-cyan hover:bg-cyan-400 cursor-pointer ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
@@ -487,7 +495,6 @@ export const PlayersManager = () => {
                         <th className="py-2.5 px-3">Name</th>
                         <th className="py-2.5 px-3">Role</th>
                         <th className="py-2.5 px-3">Age</th>
-                        <th className="py-2.5 px-3 font-mono">Category</th>
                         <th className="py-2.5 px-3 text-right">Base Price</th>
                       </tr>
                     </thead>
@@ -497,7 +504,6 @@ export const PlayersManager = () => {
                           <td className="py-2.5 px-3 font-bold text-white">{row.fullName}</td>
                           <td className="py-2.5 px-3">{getRoleLabel(row.role)}</td>
                           <td className="py-2.5 px-3 font-mono">{row.age}</td>
-                          <td className="py-2.5 px-3 font-mono text-brand-cyan">{row.category}</td>
                           <td className="py-2.5 px-3 font-mono text-right font-bold text-brand-emerald">
                             {formatCurrency(row.basePrice, activeTournament.currency)}
                           </td>
@@ -512,31 +518,14 @@ export const PlayersManager = () => {
         )}
       </AnimatePresence>
 
-      {/* APPROVAL & TIER ASSIGNMENT MODAL */}
+      {/* PLAYER APPROVAL MODAL */}
       <Modal
         isOpen={Boolean(selectedReg)}
         onClose={() => setSelectedReg(null)}
         title="Approve Player Registration"
-        subtitle={`Assign lot category and minimum base price for ${selectedReg?.fullName}`}
+        subtitle={`Set the base price for ${selectedReg?.fullName}`}
       >
         <form onSubmit={handleApproveSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-              Auction Category Tier *
-            </label>
-            <select
-              value={approvalForm.category}
-              onChange={(e) => setApprovalForm({ ...approvalForm, category: e.target.value })}
-              className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-sm text-slate-100"
-            >
-              <option value="MARQUEE">Marquee Lot</option>
-              <option value="CATEGORY_A">Category A</option>
-              <option value="CATEGORY_B">Category B</option>
-              <option value="CATEGORY_C">Category C</option>
-              <option value="EMERGING">Emerging Player</option>
-            </select>
-          </div>
-
           <Input
             label={activeTournament.type === 'POINTS' ? 'Base Points *' : `Base Price (${activeTournament.currency}) *`}
             type="number"
@@ -572,7 +561,7 @@ export const PlayersManager = () => {
             onChange={(e) => setAddPlayerForm({ ...addPlayerForm, fullName: e.target.value })}
           />
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
                 Playing Role *
@@ -592,22 +581,6 @@ export const PlayersManager = () => {
               </select>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300">
-                Category Tier *
-              </label>
-              <select
-                value={addPlayerForm.category}
-                onChange={(e) => setAddPlayerForm({ ...addPlayerForm, category: e.target.value })}
-                className="w-full bg-surface-card border border-border-subtle rounded-lg px-3 py-2 text-xs text-slate-100"
-              >
-                <option value="MARQUEE">Marquee Lot</option>
-                <option value="CATEGORY_A">Category A</option>
-                <option value="CATEGORY_B">Category B</option>
-                <option value="CATEGORY_C">Category C</option>
-                <option value="EMERGING">Emerging Player</option>
-              </select>
-            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

@@ -1,37 +1,89 @@
-import React, { useEffect } from 'react';
-import { Outlet, NavLink, Link, useParams, useLocation } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Outlet, NavLink, Link, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Radio, Users, Shield, BarChart3, Trophy, Search, UserPlus } from 'lucide-react';
 import { useAuction } from '../context/AuctionContext';
+import { useToast } from '../context/ToastContext';
+import { api } from '../services/api';
 import { cn } from '../utils/cn';
 
 export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { slug } = useParams();
   const { tournaments, activeTournament, loadPublicTournament } = useAuction();
+  const { toast } = useToast();
+  const [publicTournaments, setPublicTournaments] = useState([]);
   const shouldLoadTournament = slug ? activeTournament?.slug !== slug : !activeTournament?.id;
+
   useEffect(() => {
-    if (shouldLoadTournament) loadPublicTournament(slug || null).catch(() => {});
-  }, [slug, shouldLoadTournament, loadPublicTournament]);
+    let isMounted = true;
+    api.getPublicAuctions().then(result => {
+      if (isMounted && result?.success && Array.isArray(result.data)) setPublicTournaments(result.data);
+    }).catch(error => {
+      if (isMounted) toast.error(error.message || 'Tournament history could not be loaded.');
+    });
+    return () => { isMounted = false; };
+  }, [toast]);
+
+  useEffect(() => {
+    if (shouldLoadTournament) {
+      loadPublicTournament(slug || null).catch(error => {
+        if (slug) toast.error(error.message || 'Could not load this tournament.');
+      });
+    }
+  }, [slug, shouldLoadTournament, loadPublicTournament, toast]);
 
   const currentTournament = tournament || (
     slug
-      ? (tournaments.find(t => t.slug === slug) || (activeTournament?.slug === slug ? activeTournament : null))
+      ? (publicTournaments.find(t => t.slug === slug) || tournaments.find(t => t.slug === slug) || (activeTournament?.slug === slug ? activeTournament : null))
       : activeTournament
   );
-  const currentSlug = currentTournament?.slug || slug || 'cpl-2026';
   const currentTitle = currentTournament?.title || 'BidX Tournament';
+  const currentStatus = currentTournament?.status || 'LIVE';
+  const statusClasses = currentStatus === 'LIVE'
+    ? 'bg-red-500/10 text-red-400 border-red-500/30'
+    : currentStatus === 'COMPLETED'
+      ? 'bg-slate-700/50 text-slate-300 border-slate-500/40'
+      : 'bg-amber-500/10 text-amber-300 border-amber-500/30';
 
   const isCustomSlug = Boolean(slug);
   const homePath = isCustomSlug ? `/live/${slug}` : '/';
   const registerPath = isCustomSlug ? `/register/${slug}` : '/register';
 
   const navLinks = [
-    { label: 'Live Auction', path: homePath, icon: Radio, highlight: true, exact: true },
+    { label: currentStatus === 'COMPLETED' ? 'Tournament Overview' : 'Live Auction', path: homePath, icon: Radio, highlight: true, exact: true },
     { label: 'All Players', path: isCustomSlug ? `/live/${slug}/players` : '/players', icon: Search },
     { label: 'Teams & Squads', path: isCustomSlug ? `/live/${slug}/teams` : '/teams', icon: Shield },
     { label: 'Auction Stats', path: isCustomSlug ? `/live/${slug}/stats` : '/stats', icon: BarChart3 },
   ];
+
+  const changePublicTournament = (nextSlug) => {
+    if (!nextSlug || nextSlug === (slug || activeTournament?.slug)) return;
+    const page = location.pathname.match(/\/(players|teams|stats)$/)?.[1];
+    navigate(`/live/${nextSlug}${page ? `/${page}` : ''}`);
+    toast.info('Loading the selected tournament.');
+  };
+
+  const publicTournamentSelector = (className = '') => (
+    <label className={`flex min-w-0 items-center gap-2 ${className}`}>
+      <Trophy className="h-4 w-4 shrink-0 text-brand-cyan" />
+      <span className="sr-only">Choose tournament</span>
+      <select
+        aria-label="Choose tournament"
+        value={slug || activeTournament?.slug || ''}
+        onChange={event => changePublicTournament(event.target.value)}
+        className="min-w-0 max-w-full rounded-lg border border-border-subtle bg-surface-accent px-2.5 py-2 text-xs font-semibold text-slate-100 outline-none focus:border-brand-cyan sm:text-sm"
+      >
+        {!publicTournaments.length && <option value="">Tournament history</option>}
+        {publicTournaments.map(item => (
+          <option key={item._id || item.slug} value={item.slug}>
+            {item.title} · {item.status}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
   return (
     <div className="min-h-screen bg-canvas text-slate-100 flex flex-col font-sans">
@@ -50,9 +102,9 @@ export const PublicLayout = ({ children, tournament }) => {
                     <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-brand-cyan transition-colors truncate max-w-[150px] sm:max-w-xs">
                       {currentTitle}
                     </span>
-                    <span className="flex items-center gap-1 bg-red-500/10 text-red-400 border border-red-500/30 text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0">
-                      <span className="w-1.5 h-1.5 rounded-full bg-brand-crimson animate-ping" />
-                      Live
+                    <span className={`flex items-center gap-1 border text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${statusClasses}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${currentStatus === 'LIVE' ? 'bg-brand-crimson animate-ping' : currentStatus === 'COMPLETED' ? 'bg-slate-400' : 'bg-amber-300'}`} />
+                      {currentStatus}
                     </span>
                   </div>
                   <span className="text-[10px] sm:text-[11px] text-slate-400 block -mt-0.5 truncate">
@@ -63,7 +115,7 @@ export const PublicLayout = ({ children, tournament }) => {
             </div>
 
             {/* Desktop Navigation Tabs */}
-            <nav className="hidden md:flex items-center gap-1">
+            <nav className="hidden lg:flex items-center gap-1">
               {navLinks.map((item) => (
                 <NavLink
                   key={item.path}
@@ -84,20 +136,24 @@ export const PublicLayout = ({ children, tournament }) => {
 
             {/* Header Right Actions (Single CTA Button) */}
             <div className="flex items-center gap-2 shrink-0">
-              <Link
-                to={registerPath}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Register Player</span>
-                <span className="sm:hidden">Register</span>
-              </Link>
+              {publicTournaments.length > 0 && publicTournamentSelector('hidden lg:flex max-w-56')}
+              {currentStatus !== 'COMPLETED' && (
+                <Link
+                  to={registerPath}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Register Player</span>
+                  <span className="sm:hidden">Register</span>
+                </Link>
+              )}
             </div>
           </div>
         </div>
 
         {/* Mobile Horizontal Subnav - Scrollable with 4 Core Sections */}
-        <div className="md:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
+        <div className="lg:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
+          {publicTournaments.length > 0 && publicTournamentSelector('shrink-0 max-w-[65vw]')}
           {navLinks.map((item) => (
             <NavLink
               key={item.path}
@@ -135,8 +191,8 @@ export const PublicLayout = ({ children, tournament }) => {
           <p>© 2026 BidX — Cricket Auction Platform. All Rights Reserved.</p>
           <div className="flex items-center gap-4 text-slate-400">
             <span className="flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-brand-emerald animate-pulse" />
-              Real-time Sync Active
+              <span className={`w-2 h-2 rounded-full ${currentStatus === 'COMPLETED' ? 'bg-slate-500' : 'bg-brand-emerald animate-pulse'}`} />
+              {currentStatus === 'COMPLETED' ? 'Tournament History' : 'Real-time Sync Active'}
             </span>
             <span>•</span>
             <Link to="/admin" className="hover:text-brand-cyan transition-colors">Organiser Admin</Link>

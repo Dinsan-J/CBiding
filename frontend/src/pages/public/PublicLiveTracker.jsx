@@ -135,10 +135,16 @@ export const PublicLiveTracker = () => {
       {/* CENTERSTAGE: LIVE LOT CARD (Cricbuzz Hero Experience) */}
       {!currentLotPlayer ? (
         <div className="relative rounded-3xl bg-gradient-to-b from-surface-card via-slate-900 to-canvas border border-border-subtle p-8 text-center shadow-2xl">
-          <Clock className="w-16 h-16 text-brand-gold mx-auto mb-4 animate-pulse" />
-          <h2 className="text-2xl font-bold text-white">Awaiting Next Lot Draw</h2>
+          {activeTournament.status === 'COMPLETED'
+            ? <Trophy className="w-16 h-16 text-brand-gold mx-auto mb-4" />
+            : <Clock className="w-16 h-16 text-brand-gold mx-auto mb-4 animate-pulse" />}
+          <h2 className="text-2xl font-bold text-white">
+            {activeTournament.status === 'COMPLETED' ? 'Tournament Complete' : 'Awaiting Next Lot Draw'}
+          </h2>
           <p className="text-sm text-slate-400 mt-2 max-w-md mx-auto">
-            The previous lot has concluded. The live auctioneer desk is preparing the next athlete for the auction stage.
+            {activeTournament.status === 'COMPLETED'
+              ? 'This tournament has finished. Browse the players, squads, and auction statistics above to review its history.'
+              : 'The previous lot has concluded. The live auctioneer desk is preparing the next athlete for the auction stage.'}
           </p>
         </div>
       ) : (
@@ -148,7 +154,7 @@ export const PublicLiveTracker = () => {
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1.5 bg-red-500/10 text-brand-crimson border border-red-500/30 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase">
               <span className="w-2 h-2 rounded-full bg-brand-crimson animate-ping" />
-              LIVE LOT ON STAGE
+              {activeTournament.status === 'LIVE' ? 'LIVE LOT ON STAGE' : `${activeTournament.status || 'TOURNAMENT'} TOURNAMENT`}
             </span>
             <Badge variant="gold" dot className="font-bold">
               LOT #{currentLotPlayer?.lotNumber || 1}

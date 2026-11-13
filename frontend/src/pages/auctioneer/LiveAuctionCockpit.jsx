@@ -29,6 +29,7 @@ import { TeamMark } from '../../components/ui/TeamMark';
 import { SoldCelebration } from '../../components/ui/SoldCelebration';
 import { formatCurrency, formatExactCurrency, getRoleBadgeClass, getRoleLabel } from '../../utils/formatters';
 import { lotEntranceVariants, tabContentVariants } from '../../utils/motion';
+import { useToast } from '../../context/ToastContext';
 
 export const LiveAuctionCockpit = () => {
   const {
@@ -51,6 +52,7 @@ export const LiveAuctionCockpit = () => {
     soldEvent,
     closeSoldModal
   } = useAuction();
+  const { toast } = useToast();
 
   // Active increment step selection (Default 500 as requested: 500, 1000, 1500, 2000, 2500)
   const [selectedIncrement, setSelectedIncrement] = useState(500);
@@ -79,8 +81,8 @@ export const LiveAuctionCockpit = () => {
     const nextAmount = (activeLot.currentBid || currentLotPlayer?.basePrice || 0) + selectedIncrement;
     const res = await placeBid(teamId, nextAmount);
     if (res && !res.success) {
-      alert(res.reason || res.error || 'Bid rejected by auction engine');
-    }
+      toast.error(res.reason || res.error || 'Bid rejected by auction engine');
+    } else if (res?.success) toast.success(`Bid placed: ${formatExactCurrency(nextAmount, activeTournament.currency)}.`);
   };
 
   // Keyboard Shortcuts Handler
@@ -162,7 +164,7 @@ export const LiveAuctionCockpit = () => {
           {/* Team Bidding Grid Skeleton */}
           <div className="space-y-2">
             <Skeleton className="h-4 w-48 rounded-lg" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))' }}>
               {[1,2,3,4,5,6].map(i => <Skeleton key={i} className="h-24 rounded-xl" />)}
             </div>
           </div>
@@ -257,7 +259,6 @@ export const LiveAuctionCockpit = () => {
               <span className={`px-2.5 py-0.5 text-xs font-bold rounded-lg border ${getRoleBadgeClass(currentLotPlayer.role)}`}>
                 {getRoleLabel(currentLotPlayer.role)}
               </span>
-              <Badge variant="cyan">{currentLotPlayer.category || 'CATEGORY A'}</Badge>
               <span className="text-xs text-slate-400">
                 {currentLotPlayer.country} • Age: {currentLotPlayer.age}
               </span>
@@ -427,7 +428,7 @@ export const LiveAuctionCockpit = () => {
 
         {/* BOTTOM ROW: RAPID TEAM BIDDING SELECTOR GRID */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
               <Gavel className="w-4 h-4 text-brand-cyan" />
               1-Click Franchise Bidding Desk (Next Bid: {formatExactCurrency(activeLot.currentBid + selectedIncrement, activeTournament.currency)})
@@ -437,7 +438,10 @@ export const LiveAuctionCockpit = () => {
             </span>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div
+            className="grid min-w-0 gap-3"
+            style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 13rem), 1fr))' }}
+          >
             {teams.map((team) => {
               const teamKey = team.id || team._id;
               const isLeading = (currentHighestTeam?.id === teamKey) || (currentHighestTeam?._id === teamKey);
@@ -451,7 +455,7 @@ export const LiveAuctionCockpit = () => {
                   whileTap={canAfford ? { scale: 0.97 } : {}}
                   disabled={!canAfford}
                   onClick={() => handleTeamBid(teamKey)}
-                  className={`relative p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                  className={`relative min-w-0 min-h-32 p-3.5 rounded-xl border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     isLeading 
                       ? 'bg-brand-cyan/15 border-brand-cyan shadow-glow-cyan/30' 
                       : canAfford 
