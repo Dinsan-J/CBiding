@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { useAuction } from '../context/AuctionContext';
 import { TournamentSelector } from '../components/layout/TournamentSelector';
+import { DownloadAuctionPdfButton } from '../components/layout/DownloadAuctionPdfButton';
 
 export const AuctioneerLayout = ({ children, tournamentTitle }) => {
   const { activeTournament, activeTournamentId, setActiveTournamentId, isLiveLoading, selectionError } = useAuction();
@@ -42,6 +43,7 @@ export const AuctioneerLayout = ({ children, tournamentTitle }) => {
         {/* Tournament Context & Controls */}
         <div className="flex items-center gap-3">
           <TournamentSelector compact />
+          <DownloadAuctionPdfButton compact />
           <Badge variant={activeTournament?.status === 'LIVE' ? 'emerald' : 'cyan'} dot={activeTournament?.status === 'LIVE'}>
             <Radio className="w-3 h-3 mr-1" />
             {activeTournament?.status || 'NO TOURNAMENT'}

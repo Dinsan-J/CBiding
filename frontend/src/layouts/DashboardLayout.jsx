@@ -21,6 +21,7 @@ import { Button } from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import { useAuction } from '../context/AuctionContext';
 import { TournamentSelector } from '../components/layout/TournamentSelector';
+import { DownloadAuctionPdfButton } from '../components/layout/DownloadAuctionPdfButton';
 
 export const DashboardLayout = ({ children }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -262,6 +263,7 @@ export const DashboardLayout = ({ children }) => {
 
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <TournamentSelector />
+            <DownloadAuctionPdfButton compact />
 
             <Link
               to="/"

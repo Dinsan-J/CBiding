@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Gavel, 
@@ -58,6 +58,7 @@ export const LiveAuctionCockpit = () => {
   const [selectedIncrement, setSelectedIncrement] = useState(500);
   const [isConfirmSoldOpen, setIsConfirmSoldOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('queue'); // 'queue', 'bids', 'unsold'
+  const lastEnterAtRef = useRef(0);
 
   // Dynamic Increment Options
   const incrementOptions = [500, 1000, 1500, 2000, 2500];
@@ -78,6 +79,7 @@ export const LiveAuctionCockpit = () => {
 
   // Handle Team Tap to Bid
   const handleTeamBid = async (teamId) => {
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     const nextAmount = (activeLot.currentBid || currentLotPlayer?.basePrice || 0) + selectedIncrement;
     const res = await placeBid(teamId, nextAmount);
     if (res && !res.success) {
@@ -88,25 +90,56 @@ export const LiveAuctionCockpit = () => {
   // Keyboard Shortcuts Handler
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Avoid shortcuts when typing in an input
-      if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+      if (e.code !== 'Enter') lastEnterAtRef.current = 0;
+      const target = e.target;
+      if (target instanceof HTMLElement && target.closest('input, textarea, select, button, a, [contenteditable="true"]')) return;
+      if (isConfirmSoldOpen) return;
+      if (e.repeat) return;
 
       if (e.code === 'Space') {
         e.preventDefault();
         toggleTimer();
       } else if (e.code === 'Enter') {
         e.preventDefault();
-        if (currentHighestTeam) setIsConfirmSoldOpen(true);
+        if (e.shiftKey) {
+          lastEnterAtRef.current = 0;
+          hammerUnsold();
+          return;
+        }
+        if (e.ctrlKey || e.altKey || e.metaKey) return;
+
+        const now = Date.now();
+        if (lastEnterAtRef.current && now - lastEnterAtRef.current <= 650) {
+          lastEnterAtRef.current = 0;
+          if (currentHighestTeam) hammerSold();
+          else toast.error('Place a bid before hammering the player sold.');
+        } else {
+          lastEnterAtRef.current = now;
+          if (currentHighestTeam) toast.info('Press Enter again within 650 ms to hammer sold.');
+          else toast.error('Place a bid before hammering the player sold.');
+          window.setTimeout(() => {
+            if (lastEnterAtRef.current === now) lastEnterAtRef.current = 0;
+          }, 700);
+        }
       } else if (e.key === 'u' || e.key === 'U') {
+        lastEnterAtRef.current = 0;
         hammerUnsold();
       } else if (e.ctrlKey && (e.key === 'z' || e.key === 'Z')) {
+        lastEnterAtRef.current = 0;
         undoLastBid();
+      } else {
+        lastEnterAtRef.current = 0;
       }
     };
+    const resetEnterSequence = () => { lastEnterAtRef.current = 0; };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [toggleTimer, currentHighestTeam, hammerUnsold, undoLastBid]);
+    window.addEventListener('pointerdown', resetEnterSequence);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('pointerdown', resetEnterSequence);
+    };
+  }, [toggleTimer, currentHighestTeam, hammerSold, hammerUnsold, undoLastBid, isConfirmSoldOpen, toast]);
 
   // ── SKELETON LOADING STATE (shows while backend data is syncing on page refresh) ──
   if (isLiveLoading) {
@@ -524,7 +557,7 @@ export const LiveAuctionCockpit = () => {
 
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <span className="text-xs text-slate-400 hidden xl:inline">
-              Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Enter</kbd> = Sold, <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">U</kbd> = Unsold
+              Shortcuts: <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Enter × 2</kbd> = Sold, <kbd className="px-1.5 py-0.5 bg-slate-800 rounded font-mono text-[10px]">Shift+Enter</kbd> = Unsold
             </span>
             <Button
               variant="gold"
@@ -534,7 +567,7 @@ export const LiveAuctionCockpit = () => {
               onClick={() => setIsConfirmSoldOpen(true)}
               className="w-full sm:w-auto text-sm sm:text-base font-black shadow-glow-gold py-2.5 sm:py-3.5"
             >
-              HAMMER SOLD (Enter)
+              HAMMER SOLD
             </Button>
           </div>
         </div>

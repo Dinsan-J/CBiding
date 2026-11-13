@@ -6,6 +6,7 @@ import { useAuction } from '../context/AuctionContext';
 import { useToast } from '../context/ToastContext';
 import { api } from '../services/api';
 import { cn } from '../utils/cn';
+import { DownloadAuctionPdfButton } from '../components/layout/DownloadAuctionPdfButton';
 
 export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
@@ -137,6 +138,7 @@ export const PublicLayout = ({ children, tournament }) => {
             {/* Header Right Actions (Single CTA Button) */}
             <div className="flex items-center gap-2 shrink-0">
               {publicTournaments.length > 0 && publicTournamentSelector('hidden lg:flex max-w-56')}
+              <DownloadAuctionPdfButton compact className="hidden lg:inline-flex" />
               {currentStatus !== 'COMPLETED' && (
                 <Link
                   to={registerPath}
@@ -153,6 +155,7 @@ export const PublicLayout = ({ children, tournament }) => {
 
         {/* Mobile Horizontal Subnav - Scrollable with 4 Core Sections */}
         <div className="lg:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
+          <DownloadAuctionPdfButton compact className="shrink-0" />
           {publicTournaments.length > 0 && publicTournamentSelector('shrink-0 max-w-[65vw]')}
           {navLinks.map((item) => (
             <NavLink
