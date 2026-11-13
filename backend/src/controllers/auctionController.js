@@ -47,8 +47,8 @@ exports.getAuctionBySlug = async (req, res, next) => {
       });
     }
 
-    await auction.populate('currentLot.playerId');
-    await auction.populate('currentLot.highestBidderTeamId');
+    await auction.populate({ path: 'currentLot.playerId', select: '-contactNumber -email' });
+    await auction.populate({ path: 'currentLot.highestBidderTeamId', select: '-ownerContact' });
 
     res.status(200).json({
       success: true,

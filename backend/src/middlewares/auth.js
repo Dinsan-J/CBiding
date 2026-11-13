@@ -19,38 +19,11 @@ exports.protect = async (req, res, next) => {
     });
   }
 
-  // Handle local fallback session token
-  if (token.startsWith('jwt_mock_token_admin_')) {
-    try {
-      req.user = await User.findOne({ status: 'ACTIVE' }).sort({ role: 1 });
-      if (req.user) {
-        req.tenantId = req.user.tenantId;
-        return next();
-      }
-    } catch {
-      // Fall through to standard jwt verification
-    }
-  }
-
   try {
-    let decoded;
-    try {
-      decoded = jwt.verify(
-        token, 
-        process.env.JWT_SECRET || 'bidx_cricket_auction_ultra_secret_key_2026'
-      );
-    } catch (jwtErr) {
-      // If token expired due to clock skew or short expiration, verify signature ignoring expiration
-      if (jwtErr.name === 'TokenExpiredError') {
-        decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET || 'bidx_cricket_auction_ultra_secret_key_2026',
-          { ignoreExpiration: true }
-        );
-      } else {
-        throw jwtErr;
-      }
-    }
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'bidx_cricket_auction_ultra_secret_key_2026'
+    );
 
     req.user = await User.findById(decoded.id);
 

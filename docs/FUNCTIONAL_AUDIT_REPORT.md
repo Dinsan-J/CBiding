@@ -1,89 +1,42 @@
-# BidX — Complete System Functional Audit Report
+# BidX Functional Audit Report
 
-**Date:** 2026-11-12  
-**Platform Version:** BidX 2.0 (Authoritative Real-Time Architecture)  
-**Lead Auditor:** Senior Full-Stack & QA Automation Engineer  
-**Live Frontend Deployment:** [https://bidxnew.vercel.app/](https://bidxnew.vercel.app/)  
-**Live Backend Deployment:** [https://bidx-backend-gepi.onrender.com](https://bidx-backend-gepi.onrender.com)  
-**Database Cluster:** MongoDB Atlas (`cluster0.scmhj0y.mongodb.net/bidx`)
+**Audit updated:** 2026-11-13
+**Scope:** Source inspection and local checks of the checked-out frontend and backend.
 
----
+## Audit result
 
-## 1. Executive Summary
+This is a partial source audit, not a completed end-to-end acceptance run. The existing report previously claimed live database and multiplayer verification without evidence in this checkout; those claims have been removed. No production or existing user records were used or changed. MongoDB-backed requests, browser interaction, multiple-client Socket.IO behavior, and production integrations remain unverified here.
 
-A comprehensive, end-to-end functional audit was executed across the entire BidX sports-tech auction platform. Every page, modal, form, API route, controller, Socket.IO event handler, database collection, and security check was audited and verified against real database persistence and real-time multiplayer bidding requirements.
+## Feature inventory and status
 
-All discovered functional regressions, offline mock behaviors, and authentication edge cases have been resolved. The platform operates with 100% backend authority, atomic concurrency guarantees, squad reserve fund mathematical enforcement, and real MongoDB Atlas persistence.
+| Feature | Implementation | Test Status | Issue / Root Cause | Fix Applied | Retest |
+|---|---|---|---|---|---|
+| Login and sessions | `frontend/src/context/AuthContext.jsx`; backend auth controller, User model, auth middleware | PARTIALLY WORKING | Frontend accepted hardcoded demo credentials and a mock token; middleware treated mock tokens as authenticated and accepted expired JWTs. | Removed frontend credential fallback, mock-token acceptance, and expired-token bypass. | Source reviewed; backend unit suite passes. Real login/expiry flow needs isolated DB integration tests. |
+| Registration and tenant creation | `backend/src/controllers/authController.js`; User/Tenant models | PARTIALLY WORKING | Registration path not exercised against a database; input validation and atomic tenant/user creation need review. | None in this audit pass. | Not tested against MongoDB. |
+| Auctions and lifecycle | `frontend/src/pages/organiser/TournamentsManager.jsx`; auction routes/controller/model | PARTIALLY WORKING | Source exposes CRUD/status operations. Ownership checks and valid transition enforcement are not consistently applied in controllers. | None in this audit pass. | Not tested against MongoDB or browser. |
+| Teams and fixed-player allocations | `frontend/src/pages/organiser/TeamsManager.jsx`; team routes/controller/model | PARTIALLY WORKING | CRUD and ledger paths exist; cross-tenant ownership and atomic ledger updates need review. Public team response previously included owner contact. | Public team list now omits `ownerContact`. | Build passes; API behavior not exercised. |
+| Player roster and imports | `frontend/src/pages/organiser/PlayersManager.jsx`; player controller/model | PARTIALLY WORKING | CRUD/import paths exist; broad tenant ownership, validation, upload storage, and partial bulk failure behavior need review. | Removed implicit selection of the first auction when creating a player without a valid auction. | Source reviewed; API behavior not exercised. |
+| Public player registration and approval | `frontend/src/pages/registration/PublicPlayerRegistration.jsx`; player controller; PlayerRegistration model | PARTIALLY WORKING | Invalid registration slugs fell back to an arbitrary auction; review endpoint lacked status/idempotency/tenant checks. | Removed arbitrary-auction fallback; review now restricts status and rejects already reviewed submissions, and scopes lookup by tenant. | Source reviewed; MongoDB duplicate/race behavior not exercised. |
+| Live auction and bidding | `frontend/src/pages/auctioneer/LiveAuctionCockpit.jsx`; AuctionEngine; live routes/controller | PARTIALLY WORKING | Atomicity is incomplete across auction, bid, player, and team writes; operation authorization and tenant checks need full review. | No engine changes in this pass. | Existing unit suite covers reserve math only; no DB or concurrency test. |
+| Public auction dashboard | Public pages; public auction/team/player/live endpoints; AuctionContext | PARTIALLY WORKING | Realtime wiring exists, but socket multi-client behavior and payload privacy were not tested. Context previously initialized bundled sample tournament/team/player/registration data. | Removed sample state initialization; successful API responses replace context with actual auction, team, and player records. Public auction player/team populations now exclude contact fields. | Frontend build passes; no browser/socket session test. |
+| Socket.IO | `backend/src/sockets/auctionSocket.js`; frontend socket service/context | PARTIALLY WORKING | Room join is unauthenticated; this may be intentional for public spectators, but room authorization, payload exposure, and reconnection behavior require verification. | None in this audit pass. | Not tested with connected clients. |
+| WhatsApp | `backend/src/services/WhatsAppNotificationService.js`; AuctionEngine | BLOCKED BY CONFIGURATION | Provider credentials are not configured in the example environment; real delivery/retry/status cannot be confirmed. | Existing service reports unconfigured state rather than claiming delivery. | Existing unit test confirms unconfigured handling only. |
+| Uploads and images | Frontend player/team forms; backend models/controllers | NOT VERIFIED | No verified persistent upload provider path was exercised; URL fields alone do not prove files are stored. | None. | Not tested. |
+| Settings and design system | SettingsView, shared UI components, layouts and CSS | NOT VERIFIED | Static source inventory only; controls and responsive states were not interacted with in a browser. | None. | Production build only. |
 
----
+## Verification performed
 
-## 2. Complete Functional Audit Matrix
+- `backend`: `npm test` — **14/14 existing unit checks passed**. These cover reserve eligibility, bid increment calculation, fixed-player eligibility, and the unconfigured WhatsApp path. They do not call HTTP endpoints or a database.
+- `frontend`: `npm run build` — **passed**. Vite reports the main minified JavaScript chunk is above 500 kB.
+- Source review: routes, controllers, models, auth/tenant middleware, auction engine, Socket.IO handler, API client, auth/auction contexts, and page inventory.
 
-| Feature | Test Status | Issue Identified | Root Cause | Fix Applied | Retest Result |
-| :--- | :---: | :--- | :--- | :--- | :---: |
-| **Public Player Self-Registration** | **PASS** | Player submitted form, but record was not persisted to MongoDB. | `PublicPlayerRegistration.jsx` had mock `setTimeout` without calling `api.registerSelf`. | Connected form to `api.registerSelf(slug, payload)`. Tested live with sample athletes. | **100% Verified in Atlas** |
-| **Organiser Registration Approvals** | **PASS** | Registrations tab displayed static mock data; newly registered players did not appear. | `PlayersManager.jsx` did not fetch live registrations on mount or tab change. | Added `loadRegistrations` hook, auto-refresh on tab switch, manual `RefreshCw` button, and connected "Approve & Set Tier" modal to `api.reviewRegistration`. | **100% Verified in Atlas** |
-| **JWT Expiration & Admin Auth** | **PASS** | `GET /api/players/registrations/:id` returned HTTP 401 unauthorized. | Render environment variable `JWT_EXPIRES_IN=7` without unit was parsed by `ms` as 7 milliseconds, causing immediate token expiration (`exp === iat`). | Implemented `sanitizeExpiresIn` in `User.js` converting pure integers to days (`7` -> `7d`), and added resilient HMAC signature fallback verification in `auth.js`. | **HTTP 200 OK verified on Render** |
-| **Slug & ObjectId Mixed Resolution** | **PASS** | Endpoints threw MongoDB `CastError` when querying by string slug (e.g. `cpl-2026`). | Controllers passed `req.params.id` straight to `findById` without slug inspection. | Created `resolveAuction.js` helper checking for 24-char ObjectId hex string vs slug lookup across all routes. | **Zero CastErrors** |
-| **Real-Time Bidding Engine** | **PASS** | Bids were executed client-side only without central backend arbitration. | `AuctionContext` `placeBid` mutated local React state without invoking `api.placeBid`. | Connected `placeBid` to `api.placeBid(auctionId, { teamId, amount })`. Atomic compare-and-swap update via `Auction.findOneAndUpdate`. | **Multiplayer sync verified** |
-| **Reserve Fund Protection Math** | **PASS** | Potential overspending risk where a franchise could spend so much that minimum squad size couldn't be met. | Math formula not enforced at atomic update layer. | Enforced: $\text{Remaining} - \text{Bid} \ge (\text{MinSquad} - \text{Squad} - 1) \times \text{MinBasePrice}$ in `AuctionEngine.validateBiddingEligibility`. | **11/11 Automated Tests Pass** |
-| **Hammer SOLD Execution** | **PASS** | Hammer SOLD only updated frontend state; no acquisition record or wallet deduction in database. | Missing backend live auction wiring in `AuctionContext`. | Rewired `hammerSold` to call `api.hammerSold`, creating immutable `PlayerAcquisition` record and broadcasting `lot_sold` via Socket.IO. | **Verified with Socket.IO broadcast** |
-| **Hammer UNSOLD Execution** | **PASS** | Hammer UNSOLD was client-only. | Context did not dispatch to backend route. | Rewired `hammerUnsold` to `api.hammerUnsold` updating player status to `UNSOLD` and advancing lot. | **Verified** |
-| **Lot Selection & Stage Call** | **PASS** | Selecting a lot in cockpit only mutated local state. | Context lacked backend call for lot selection. | Rewired `selectPlayerLot` to call `api.selectLot`, resetting the authoritative timer and broadcasting `lot_selected`. | **Verified** |
-| **Undo Last Bid** | **PASS** | No backend endpoint existed to safely reverse an erroneous bid. | Missing route and controller. | Implemented `undoLastBid` in `AuctionEngine.js`, route `POST /api/live/:auctionId/undo-bid`, and frontend trigger. Immutably records `BID_REVERSED` in `AuditLog`. | **Verified** |
-| **Team Management CRUD** | **PASS** | No route to delete a team; teams with acquired players could be deleted. | Missing `deleteTeam` controller and safeguard. | Created `deleteTeam` endpoint with safeguard preventing deletion of teams with acquired players. Added UI delete button with confirm modal. | **Verified** |
-| **Tournament Management CRUD** | **PASS** | Organiser could not transition tournament state (LIVE, PAUSED, COMPLETED) or delete drafts. | Missing `deleteAuction` endpoint and frontend state update action. | Added `deleteAuction` endpoint, status switcher dropdown (`DRAFT`, `SCHEDULED`, `LIVE`, `PAUSED`, `COMPLETED`), and active tournament switcher. | **Verified** |
-| **WhatsApp Notification Engine** | **PASS** | Missing resilient handler for WhatsApp Meta Graph API. | Unhandled rejection when credentials are unconfigured in `.env`. | Created `WhatsAppNotificationService.js` with `isConfigured()` check, acquisition template formatting, and graceful `'FAILED'` audit log if credentials missing. | **Zero Crashes** |
-| **Public Spectator Experience** | **PASS** | Real-time page needed manual refresh to receive updates. | Context did not bind public views to live Socket.IO events. | Unified `AuctionContext` with Socket.IO room listeners (`bid_placed`, `lot_sold`, `lot_unsold`, `lot_selected`, `bid_undone`). | **Broadcast latency < 80ms** |
+## Remaining high-priority work
 
----
+1. Apply tenant ownership and role authorization consistently to every private auction, team, player, registration, and live-auction operation.
+2. Make SOLD/UNSOLD, team ledger, acquisition, bid history, and audit writes transactional or safely recoverable under failure/concurrency.
+3. Add isolated MongoDB integration tests for auth expiry, tenant isolation, lifecycle transitions, CRUD, and real bid conflicts.
+4. Test browser workflows and multiple independent Socket.IO clients against an isolated test database.
+5. Verify image storage and configured WhatsApp delivery/retry behavior, or retain them as configuration blockers.
+6. Exercise loading/error/empty states, navigation, forms, filters, pagination, and responsive layouts in the browser.
 
-## 3. Detailed Component & Subsystem Findings
-
-### A. Authentication & User Access
-- **Backend Model:** `User.js` enforces bcrypt hashing (10 salt rounds) and role-based access control (`SUPER_ADMIN`, `ORGANISER`, `AUCTIONEER`).
-- **Token Sanitation:** Automatically sanitizes numerical expiry inputs to day strings (`7` -> `7d`), eliminating the 7ms token expiration bug on Render.
-- **Tenant Isolation:** Every protected request passes through `protect` and `enforceTenant` middlewares, enforcing strict multi-tenancy.
-
-### B. Player Self-Registration & Approval Workflow
-- Public athletes navigate to `/register` or `/register/:slug`.
-- Form inputs (name, contact, city, role, batting/bowling style, career statistics, portrait preview) are validated on client and backend.
-- Stored in MongoDB collection `playerregistrations` with status `PENDING`.
-- Organisers review pending applications in `/admin/players` -> **Pending Approvals** tab.
-- Approving sets Category and Base Price, automatically promoting the player to the `players` collection and allocating a sequential `lotNumber`.
-
-### C. Live Bidding Cockpit & Concurrency Control
-- **Atomic Compare-and-Swap:** Bids are committed via:
-  ```javascript
-  Auction.findOneAndUpdate({
-    _id: auctionId,
-    status: 'LIVE',
-    'currentLot.playerId': playerId,
-    'currentLot.currentBid': currentBid
-  }, { ... });
-  ```
-- Any simultaneous conflicting bid fails atomically with `CONCURRENT_BID_CONFLICT`, preventing double-bidding or race conditions.
-- **Squad Reserve Protection:** The backend validates remaining purse against:
-  $$\text{Reserve Required} = (\text{Min Squad Size} - \text{Current Squad Size} - 1) \times \text{Min Base Price}$$
-  Ensuring franchises never bankrupt themselves before completing their squad quota.
-
-### D. Audit Logging
-Every critical tournament action is immutably logged into MongoDB `AuditLog`:
-- `BID_PLACED`
-- `BID_REVERSED`
-- `LOT_HAMMER_SOLD`
-- `LOT_HAMMER_UNSOLD`
-- `LOT_SELECTED`
-- `PLAYER_APPROVED`
-
----
-
-## 4. Automated Testing Verification
-Automated test suite (`backend/tests/systemAudit.test.js`) executed with 100% pass rate:
-- ✓ Valid bid under reserve purse requirement allowed
-- ✓ Over-budget bid violating squad completion reserve rejected
-- ✓ Bid exceeding total remaining purse rejected
-- ✓ Bid exceeding franchise squad capacity rejected
-- ✓ Dynamic bid increment ladders verified across all 5 tiers
-- ✓ WhatsApp notification resilience verified when unconfigured
-- ✓ Production frontend build verified (`dist/index.html` built in 7.51s)
+The platform is **not accepted as fully audited** while these items remain unverified.

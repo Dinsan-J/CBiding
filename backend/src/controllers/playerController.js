@@ -72,10 +72,9 @@ exports.createPlayer = async (req, res, next) => {
       auction = await Auction.findOne({ slug: auctionId });
     }
     if (!auction) {
-      auction = await Auction.findOne();
+      return res.status(404).json({ success: false, error: 'Auction not found' });
     }
-
-    if (!auction) {
+    if (req.user.role !== 'SUPER_ADMIN' && String(auction.tenantId) !== String(req.tenantId)) {
       return res.status(404).json({ success: false, error: 'Auction not found' });
     }
 
@@ -121,9 +120,7 @@ exports.publicSelfRegister = async (req, res, next) => {
     if (!auction) {
       auction = await Auction.findOne({ slug });
     }
-    if (!auction) {
-      auction = await Auction.findOne(); // default fallback
-    }
+
 
     if (!auction) {
       return res.status(404).json({ success: false, error: 'Tournament registration link invalid or expired.' });
@@ -210,11 +207,20 @@ exports.reviewRegistration = async (req, res, next) => {
   try {
     const { status, assignedCategory, assignedBasePrice, rejectionReason } = req.body;
 
-    const registration = await PlayerRegistration.findById(req.params.id);
+    const registration = await PlayerRegistration.findOne({
+      _id: req.params.id,
+      ...(req.user.role === 'SUPER_ADMIN' ? {} : { tenantId: req.tenantId })
+    });
     if (!registration) {
       return res.status(404).json({ success: false, error: 'Registration not found' });
     }
 
+    if (!['APPROVED', 'REJECTED'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Status must be APPROVED or REJECTED.' });
+    }
+    if (registration.status !== 'PENDING') {
+      return res.status(409).json({ success: false, error: 'This registration has already been reviewed.' });
+    }
     registration.status = status;
     registration.reviewedAt = new Date();
 

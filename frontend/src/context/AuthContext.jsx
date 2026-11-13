@@ -5,13 +5,6 @@ const AuthContext = createContext(null);
 
 const STORAGE_KEY = 'bidx_admin_session';
 
-// Supported default admin credentials
-const VALID_CREDENTIALS = [
-  { username: 'admin', email: 'admin@bidx.com', password: 'admin' },
-  { username: 'admin', email: 'admin@bidx.com', password: 'admin123' },
-  { username: 'organiser', email: 'organiser@bidx.com', password: 'password123' },
-];
-
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     try {
@@ -28,10 +21,8 @@ export const AuthProvider = ({ children }) => {
     const trimmedId = (identifier || '').trim().toLowerCase();
     const trimmedPw = (password || '').trim();
 
-    // 1. Try Live Backend API First
-    try {
-      const res = await api.login(trimmedId, trimmedPw);
-      if (res && res.success && res.token) {
+    const res = await api.login(trimmedId, trimmedPw);
+    if (res && res.success && res.token) {
         const userData = {
           id: res.user.id,
           username: res.user.username || trimmedId,
@@ -45,38 +36,9 @@ export const AuthProvider = ({ children }) => {
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
         setUser(userData);
-        return userData;
-      }
-    } catch (apiErr) {
-      console.warn('[BidX Auth] Live API unavailable or failed:', apiErr.message);
+      return userData;
     }
-
-    // 2. Local Fallback for offline mode / demo credentials
-    const match = VALID_CREDENTIALS.find(c => 
-      (c.username.toLowerCase() === trimmedId || c.email.toLowerCase() === trimmedId) && 
-      c.password === trimmedPw
-    );
-
-    const isValid = match || (trimmedId === 'admin' && trimmedPw === 'admin');
-
-    if (!isValid) {
-      throw new Error('Invalid admin credentials. Please enter a valid username/email and password.');
-    }
-
-    const userData = {
-      id: 'admin_slc_01',
-      username: match ? match.username : 'admin',
-      email: match ? match.email : 'admin@bidx.com',
-      displayName: 'SLC Chief Organiser',
-      role: 'ADMIN',
-      tenantId: '6af553962c9ef2619668f17c',
-      token: 'jwt_mock_token_admin_' + Date.now(),
-      loginAt: new Date().toISOString()
-    };
-
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
-    setUser(userData);
-    return userData;
+    throw new Error('The server did not return a valid login session.');
   };
 
   const logout = () => {

@@ -15,7 +15,7 @@ exports.getTeamsByAuction = async (req, res, next) => {
     const auction = await resolveAuction(auctionId);
     const targetId = auction ? auction._id : auctionId;
 
-    const teams = await Team.find({ auctionId: targetId });
+    const teams = await Team.find({ auctionId: targetId }).select('-ownerContact');
     const players = await Player.find({ auctionId: targetId, status: { $in: ['SOLD', 'RETAINED'] } })
       .select('-contactNumber -email');
 

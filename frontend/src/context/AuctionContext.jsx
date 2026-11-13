@@ -1,31 +1,25 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { api } from '../services/api';
 import { getSocket, joinAuctionRoom, leaveAuctionRoom } from '../services/socket';
-import { 
-  INITIAL_TOURNAMENTS, 
-  INITIAL_TEAMS, 
-  INITIAL_PLAYERS, 
-  INITIAL_REGISTRATIONS 
-} from '../data/mockData';
 
 const AuctionContext = createContext(null);
 
 export const AuctionProvider = ({ children }) => {
   // Tournaments State
-  const [tournaments, setTournaments] = useState(INITIAL_TOURNAMENTS);
-  const [activeTournamentId, setActiveTournamentId] = useState("tourn-cpl-2026");
-  const [auctionDbId, setAuctionDbId] = useState("6af553972c9ef2619668f184");
+  const [tournaments, setTournaments] = useState([]);
+  const [activeTournamentId, setActiveTournamentId] = useState(null);
+  const [auctionDbId, setAuctionDbId] = useState(null);
 
   // Loading state for live backend data (prevents flashing mock data on refresh)
   const [isLiveLoading, setIsLiveLoading] = useState(true);
 
   // Teams & Players State
-  const [teams, setTeams] = useState(INITIAL_TEAMS);
-  const [players, setPlayers] = useState(INITIAL_PLAYERS);
-  const [registrations, setRegistrations] = useState(INITIAL_REGISTRATIONS);
+  const [teams, setTeams] = useState([]);
+  const [players, setPlayers] = useState([]);
+  const [registrations, setRegistrations] = useState([]);
 
   // Active Live Lot Engine State
-  const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0];
+  const activeTournament = tournaments.find(t => t.id === activeTournamentId) || tournaments[0] || {};
 
   // Available un-auctioned players — UNSOLD excluded until explicitly re-queued
   const availablePlayers = players.filter(p => 
@@ -108,6 +102,13 @@ export const AuctionProvider = ({ children }) => {
   // Live Backend Data Synchronization
   useEffect(() => {
     let isMounted = true;
+
+    // MAX skeleton wait = 2.5s — after that show the page regardless of backend speed.
+    // The API response will still update state live when it eventually arrives (Render cold start).
+    const skeletonTimeout = setTimeout(() => {
+      if (isMounted) setIsLiveLoading(false);
+    }, 2500);
+
     const fetchLiveData = async () => {
       try {
         const res = await api.getPublicBroadcast('cpl-2026');
@@ -116,7 +117,12 @@ export const AuctionProvider = ({ children }) => {
           if (auction?._id) {
             setAuctionDbId(auction._id);
           }
-          if (liveTeams?.length > 0) {
+          if (auction) {
+            const tournament = { ...auction, id: auction._id };
+            setTournaments([tournament]);
+            setActiveTournamentId(auction._id);
+          }
+          if (Array.isArray(liveTeams)) {
             setTeams(liveTeams.map(t => ({
               ...t,
               id: t._id,
@@ -124,7 +130,7 @@ export const AuctionProvider = ({ children }) => {
               ownerName: t.ownerName
             })));
           }
-          if (livePlayers?.length > 0) {
+          if (Array.isArray(livePlayers)) {
             setPlayers(livePlayers.map(p => ({
               ...p,
               id: p._id,
@@ -187,21 +193,24 @@ export const AuctionProvider = ({ children }) => {
           }
         }
       } catch (err) {
-        console.warn('[BidX Context] Running in offline fallback mode:', err.message);
+        console.warn('[BidX Context] Could not load auction data:', err.message);
       } finally {
-        if (isMounted) {
-          setIsLiveLoading(false);
-        }
+        // Clear loading regardless — skeletonTimeout may have already done this
+        if (isMounted) setIsLiveLoading(false);
       }
     };
     fetchLiveData();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+      clearTimeout(skeletonTimeout);
+    };
   }, [fetchRegistrations]);
 
   // Dynamic Socket.IO Room Management
   useEffect(() => {
     const socket = getSocket();
-    const auctionRoomId = auctionDbId || '6af553972c9ef2619668f184';
+    const auctionRoomId = auctionDbId;
+    if (!auctionRoomId) return;
     joinAuctionRoom(auctionRoomId);
 
     // 1. Live Bid Placed
@@ -810,33 +819,7 @@ export const AuctionProvider = ({ children }) => {
       setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
       return { success: true };
     } catch (err) {
-      console.warn('[BidX Context] Review registration API failed, applying local fallback:', err.message);
-      // Fallback local update
-      const reg = registrations.find(r => r.id === regId || r._id === regId);
-      if (reg) {
-        const fallbackPlayer = {
-          id: `ply-${Date.now()}`,
-          auctionId: reg.auctionId || auctionDbId,
-          lotNumber: players.length + 1,
-          fullName: reg.fullName,
-          role: reg.role,
-          battingStyle: reg.battingStyle,
-          bowlingStyle: reg.bowlingStyle,
-          isOverseas: false,
-          country: "Sri Lanka",
-          age: reg.age,
-          category,
-          basePrice: Number(basePrice),
-          status: 'QUEUED',
-          stats: {
-            matches: reg.matches || 0,
-            runs: reg.runs || 0,
-            wickets: reg.wickets || 0
-          }
-        };
-        setPlayers(prev => [...prev, fallbackPlayer]);
-        setRegistrations(prev => prev.filter(r => r.id !== regId && r._id !== regId));
-      }
+      console.warn('[BidX Context] Registration review failed:', err.message);
       return { success: false, error: err.message };
     }
   }, [registrations, players.length, auctionDbId]);
@@ -870,15 +853,8 @@ export const AuctionProvider = ({ children }) => {
         return { success: true, player: newP };
       }
     } catch (err) {
-      console.warn('[BidX Context] Create player API failed, falling back to local state:', err.message);
-      const fallbackP = {
-        ...playerData,
-        id: `ply-${Date.now()}`,
-        lotNumber: players.length + 1,
-        status: 'QUEUED'
-      };
-      setPlayers(prev => [...prev, fallbackP]);
-      return { success: true, player: fallbackP };
+      console.warn('[BidX Context] Create player API failed:', err.message);
+      return { success: false, error: err.message };
     }
   }, [auctionDbId, players.length]);
 
@@ -895,16 +871,8 @@ export const AuctionProvider = ({ children }) => {
         return { success: true, tournament: newTourn };
       }
     } catch (err) {
-      console.warn('[BidX Context] Create auction API failed, falling back to local:', err.message);
-      const fallbackTourn = {
-        ...data,
-        id: `tourn-${Date.now()}`,
-        slug: data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        status: 'DRAFT',
-        currencyNotation: data.currency === 'POINTS' ? 'STANDARD' : 'SOUTH_ASIAN'
-      };
-      setTournaments(prev => [fallbackTourn, ...prev]);
-      return { success: true, tournament: fallbackTourn };
+      console.warn('[BidX Context] Create auction API failed:', err.message);
+      return { success: false, error: err.message };
     }
   }, []);
 
@@ -918,9 +886,8 @@ export const AuctionProvider = ({ children }) => {
       }
       return { success: false, error: res?.error || 'Failed to update status' };
     } catch (err) {
-      console.warn('[BidX Context] Update tournament status failed, updating local:', err.message);
-      setTournaments(prev => prev.map(t => (t.id === auctionId || t._id === auctionId) ? { ...t, status } : t));
-      return { success: true };
+      console.warn('[BidX Context] Update tournament status failed:', err.message);
+      return { success: false, error: err.message };
     }
   }, []);
 
@@ -934,9 +901,8 @@ export const AuctionProvider = ({ children }) => {
       }
       return { success: false, error: res?.error || 'Failed to delete auction' };
     } catch (err) {
-      console.warn('[BidX Context] Delete tournament failed, updating local:', err.message);
-      setTournaments(prev => prev.filter(t => t.id !== auctionId && t._id !== auctionId));
-      return { success: true };
+      console.warn('[BidX Context] Delete tournament failed:', err.message);
+      return { success: false, error: err.message };
     }
   }, []);
 
@@ -956,17 +922,8 @@ export const AuctionProvider = ({ children }) => {
         return { success: true, team: newTeam };
       }
     } catch (err) {
-      console.warn('[BidX Context] Create team API failed, falling back to local:', err.message);
-      const fallbackTeam = {
-        ...data,
-        id: `team-${Date.now()}`,
-        remainingPurse: Number(data.startingPurse),
-        totalSpent: 0,
-        squadCount: 0,
-        overseasCount: 0
-      };
-      setTeams(prev => [...prev, fallbackTeam]);
-      return { success: true, team: fallbackTeam };
+      console.warn('[BidX Context] Create team API failed:', err.message);
+      return { success: false, error: err.message };
     }
   }, [auctionDbId]);
 
