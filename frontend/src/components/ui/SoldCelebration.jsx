@@ -14,12 +14,12 @@ export const SoldCelebration = ({
   currency = 'LKR',
   onClose
 }) => {
-  // Auto-dismiss after 6 seconds so it doesn't block the auctioneer
+  // Auto-dismiss after 3 seconds so it doesn't block the auctioneer
   useEffect(() => {
     if (!isOpen) return;
     const timer = setTimeout(() => {
       onClose && onClose();
-    }, 6000);
+    }, 3000);
     return () => clearTimeout(timer);
   }, [isOpen, onClose]);
 
@@ -166,7 +166,7 @@ export const SoldCelebration = ({
             className="absolute bottom-0 left-0 h-1 bg-brand-gold/60 rounded-b-3xl"
             initial={{ width: '100%' }}
             animate={{ width: '0%' }}
-            transition={{ duration: 6, ease: 'linear' }}
+            transition={{ duration: 3, ease: 'linear' }}
           />
         </motion.div>
       </div>
