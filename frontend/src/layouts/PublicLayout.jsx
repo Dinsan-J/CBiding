@@ -156,7 +156,7 @@ export const PublicLayout = ({ children, tournament }) => {
       </header>
 
       {/* Main Public Content Area with Robust, Non-Blocking Smooth Entrance */}
-      <main className="flex-1 w-full max-w-none mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
+      <main className="flex-1 w-full max-w-8xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-6">
         <motion.div
           key={location.pathname}
           initial={{ opacity: 0, y: 8 }}
@@ -169,7 +169,7 @@ export const PublicLayout = ({ children, tournament }) => {
 
       {/* Footer */}
       <footer className="border-t border-border-subtle bg-surface-card py-6 text-center text-xs text-slate-500 mt-auto">
-        <div className="w-full max-w-none mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="w-full max-w-8xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p>© 2026 BidX — Cricket Auction Platform. All Rights Reserved.</p>
           <div className="flex items-center gap-4 text-slate-400">
             <span className="flex items-center gap-1.5">
