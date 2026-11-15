@@ -91,7 +91,7 @@ export const PublicLayout = ({ children, tournament }) => {
       {/* Broadcast Top Navbar */}
       <header className="sticky top-0 z-40 bg-surface-card/95 backdrop-blur-md border-b border-border-subtle">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-2">
+          <div className="flex min-h-16 items-center justify-between gap-3 py-2">
             {/* Branding / Logo */}
             <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 min-w-0">
               <Link to={homePath} className="flex items-center gap-2 group shrink-0">
@@ -100,7 +100,7 @@ export const PublicLayout = ({ children, tournament }) => {
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-brand-cyan transition-colors truncate max-w-[150px] sm:max-w-xs">
+                    <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-brand-cyan transition-colors truncate max-w-[90px] sm:max-w-xs">
                       {currentTitle}
                     </span>
                     <span className={`flex items-center gap-1 border text-[9px] sm:text-[10px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider shrink-0 ${statusClasses}`}>
@@ -115,34 +115,12 @@ export const PublicLayout = ({ children, tournament }) => {
               </Link>
             </div>
 
-            {/* Desktop Navigation Tabs */}
-            <nav className="hidden lg:flex items-center gap-1">
-              {navLinks.map((item) => (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  end={item.exact || item.path === homePath}
-                  className={({ isActive }) => cn(
-                    'flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-colors',
-                    isActive 
-                      ? 'bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/30' 
-                      : 'text-slate-300 hover:text-white hover:bg-surface-accent'
-                  )}
-                >
-                  <item.icon className="w-4 h-4" />
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            {/* Header Right Actions (Single CTA Button) */}
-            <div className="flex items-center gap-2 shrink-0">
-              {publicTournaments.length > 0 && publicTournamentSelector('hidden lg:flex max-w-56')}
-              <DownloadAuctionPdfButton compact className="hidden lg:inline-flex" />
+            {/* Keep the registration action beside the title; navigation has its own responsive row below. */}
+            <div className="flex shrink-0 items-center">
               {currentStatus !== 'COMPLETED' && (
                 <Link
                   to={registerPath}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand-cyan text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand-cyan px-2.5 sm:px-3 py-2 text-slate-950 font-bold text-xs shadow-glow-cyan hover:bg-cyan-300 transition-colors whitespace-nowrap"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Register Player</span>
@@ -153,23 +131,49 @@ export const PublicLayout = ({ children, tournament }) => {
           </div>
         </div>
 
-        {/* Mobile Horizontal Subnav - Scrollable with 4 Core Sections */}
-        <div className="lg:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
-          <DownloadAuctionPdfButton compact className="shrink-0" />
+        {/* Desktop nav and tournament tools sit on a dedicated row so labels never wrap. */}
+        <div className="hidden xl:flex max-w-7xl mx-auto items-center justify-between gap-3 border-t border-border-subtle px-3 sm:px-6 lg:px-8 py-2">
+          <nav className="flex min-w-0 items-center gap-1">
+            {navLinks.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.exact || item.path === homePath}
+                className={({ isActive }) => cn(
+                  'flex shrink-0 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  isActive
+                    ? 'bg-brand-cyan/15 text-brand-cyan border border-brand-cyan/30'
+                    : 'text-slate-300 hover:text-white hover:bg-surface-accent'
+                )}
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <div className="flex shrink-0 items-center gap-2">
+            {publicTournaments.length > 0 && publicTournamentSelector('max-w-56')}
+            <DownloadAuctionPdfButton compact />
+          </div>
+        </div>
+
+        {/* Tablet and mobile navigation stays on one scrollable line instead of compressing. */}
+        <div className="xl:hidden border-t border-border-subtle bg-slate-950/80 backdrop-blur-md overflow-x-auto scrollbar-none px-3 py-2 flex items-center gap-2">
           {publicTournaments.length > 0 && publicTournamentSelector('shrink-0 max-w-[65vw]')}
+          <DownloadAuctionPdfButton compact className="shrink-0" />
           {navLinks.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               end={item.exact || item.path === homePath}
               className={({ isActive }) => cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors shrink-0',
-                isActive 
-                  ? 'bg-brand-cyan text-slate-950 font-bold shadow-glow-cyan' 
+                'flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                isActive
+                  ? 'bg-brand-cyan text-slate-950 font-bold shadow-glow-cyan'
                   : 'text-slate-400 hover:text-slate-200 bg-surface-card border border-border-subtle'
               )}
             >
-              <item.icon className="w-3.5 h-3.5" />
+              <item.icon className="h-3.5 w-3.5 shrink-0" />
               {item.label}
             </NavLink>
           ))}
