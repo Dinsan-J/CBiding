@@ -67,14 +67,14 @@ export const PublicLiveTracker = () => {
             </div>
             <Skeleton className="h-5 w-36 rounded" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-4 flex flex-col items-center sm:items-start gap-4">
-              <Skeleton className="w-48 h-60 rounded-2xl" />
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
+            <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center lg:items-start gap-4">
+              <Skeleton className="w-48 h-60 sm:w-56 sm:h-[340px] xl:w-full xl:max-w-[300px] xl:h-[360px] rounded-2xl" />
               <Skeleton className="h-9 w-56 rounded-lg" />
               <Skeleton className="h-4 w-44 rounded" />
               <Skeleton className="h-4 w-32 rounded" />
             </div>
-            <div className="lg:col-span-8 flex flex-col gap-4">
+            <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <Skeleton className="h-44 rounded-2xl" />
                 <Skeleton className="h-44 rounded-2xl" />
@@ -149,7 +149,7 @@ export const PublicLiveTracker = () => {
           </p>
         </div>
       ) : (
-      <div className="relative rounded-3xl bg-gradient-to-b from-surface-card via-slate-900 to-canvas border border-brand-cyan/40 p-6 sm:p-8 shadow-[0_0_50px_-15px_rgba(6,182,212,0.25)] overflow-hidden">
+      <div className="relative rounded-3xl bg-gradient-to-br from-surface-card via-slate-900 to-canvas border border-brand-cyan/40 p-4 sm:p-6 xl:p-8 shadow-[0_0_50px_-15px_rgba(6,182,212,0.25)] overflow-hidden">
         {/* Subtle Live Broadcast Header */}
         <div className="flex items-center justify-between border-b border-border-subtle pb-4 mb-6">
           <div className="flex items-center gap-2.5">
@@ -169,11 +169,11 @@ export const PublicLiveTracker = () => {
         </div>
 
         {/* Hero Content: Player & Real-time Bid Duel */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-center">
           {/* Col 1: Player Portrait & Role Badge */}
-          <div className="lg:col-span-4 flex flex-col items-center sm:items-start text-center sm:text-left">
-            <div className="relative">
-              <div className="w-48 h-60 sm:w-56 sm:h-68 rounded-2xl overflow-hidden border-2 border-border-subtle bg-slate-900 shadow-2xl flex items-center justify-center relative">
+          <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center lg:items-start text-center lg:text-left">
+            <div className="relative w-full max-w-[280px] xl:max-w-[300px]">
+              <div className="relative flex h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-border-subtle bg-slate-900 shadow-2xl sm:h-[340px] xl:h-[360px]">
                 <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
                   <Users className="w-20 h-20 mb-2" />
                   <span className="text-xs font-mono tracking-widest text-slate-400">CRICKET ATHLETE</span>
@@ -185,28 +185,31 @@ export const PublicLiveTracker = () => {
                   onError={(e) => { e.currentTarget.style.display = 'none'; }}
                 />
               </div>
-              <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 sm:left-4 sm:translate-x-0 z-20">
+              <div className="absolute -bottom-3 left-1/2 z-20 -translate-x-1/2 lg:left-4 lg:translate-x-0">
                 <span className={`px-3 py-1 text-xs font-bold rounded-lg border shadow-lg ${getRoleBadgeClass(currentLotPlayer?.role)}`}>
                   {getRoleLabel(currentLotPlayer?.role)}
                 </span>
               </div>
             </div>
 
-            <div className="mt-6">
-              <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
+            <div className="mt-6 w-full max-w-[280px] xl:max-w-[300px]">
+              <h2 className="text-2xl sm:text-3xl font-black leading-tight tracking-tight text-white">
                 {currentLotPlayer?.fullName}
               </h2>
-              <p className="text-xs text-slate-300 mt-1">
-                {currentLotPlayer?.country} • {currentLotPlayer?.battingStyle} • {currentLotPlayer?.bowlingStyle}
+              <p className="mt-2 text-xs leading-relaxed text-slate-300">
+                {[currentLotPlayer?.country, currentLotPlayer?.battingStyle, currentLotPlayer?.bowlingStyle].filter(Boolean).join(' • ')}
               </p>
-              <p className="text-xs text-slate-400 mt-1">
-                Base Price: <strong className="font-mono text-slate-200">{formatExactCurrency(currentLotPlayer?.basePrice, activeTournament.currency)}</strong>
-              </p>
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-accent/70 px-3.5 py-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Base Price</span>
+                <strong className="font-mono text-sm font-bold text-white">
+                  {formatExactCurrency(currentLotPlayer?.basePrice, activeTournament.currency)}
+                </strong>
+              </div>
             </div>
           </div>
 
           {/* Col 2: The Bidding Board (Current Bid, Leading Team, Live Timer) */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
+          <div className="lg:col-span-8 xl:col-span-9 flex min-w-0 flex-col gap-5 xl:gap-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Current High Bid Card */}
               <div className="p-6 rounded-2xl bg-surface-accent/70 border border-border-subtle flex flex-col justify-between">
