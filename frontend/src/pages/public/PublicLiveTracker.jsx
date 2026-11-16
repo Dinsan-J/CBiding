@@ -69,8 +69,8 @@ export const PublicLiveTracker = () => {
           </div>
           <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 xl:gap-6">
             <div className="lg:col-span-5">
-              <div className="grid grid-cols-[minmax(108px,0.88fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(185px,1.1fr)_minmax(0,0.9fr)] sm:gap-4 sm:p-4 xl:grid-cols-[minmax(220px,1.15fr)_minmax(0,0.85fr)]">
-                <Skeleton className="mx-auto aspect-[4/5] w-full max-w-[280px] rounded-xl" />
+              <div className="grid grid-cols-[minmax(104px,0.72fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(145px,0.82fr)_minmax(0,1fr)] sm:gap-4 sm:p-4">
+                <Skeleton className="aspect-[4/5] max-h-[260px] w-full rounded-xl" />
                 <div className="space-y-3">
                   <Skeleton className="h-7 w-4/5 rounded-lg" />
                   <Skeleton className="h-3 w-3/4 rounded" />
@@ -177,9 +177,9 @@ export const PublicLiveTracker = () => {
         <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12 xl:gap-6">
           {/* Col 1: Player Portrait & Role Badge */}
           <div className="min-w-0 lg:col-span-5">
-            <div className="grid h-full grid-cols-[minmax(108px,0.88fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(185px,1.1fr)_minmax(0,0.9fr)] sm:gap-4 sm:p-4 xl:grid-cols-[minmax(220px,1.15fr)_minmax(0,0.85fr)]">
+            <div className="grid h-full grid-cols-[minmax(104px,0.72fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(145px,0.82fr)_minmax(0,1fr)] sm:gap-4 sm:p-4">
               <div className="relative min-w-0">
-                <div className="relative mx-auto aspect-[4/5] w-full max-w-[280px] overflow-hidden rounded-xl border-2 border-brand-cyan/35 bg-slate-900 shadow-2xl shadow-cyan-950/30">
+                <div className="relative aspect-[4/5] max-h-[260px] w-full overflow-hidden rounded-xl border border-border-subtle bg-slate-900 shadow-xl">
                   <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
                     <Users className="mb-2 h-20 w-20" />
                     <span className="text-xs font-mono tracking-widest text-slate-400">CRICKET ATHLETE</span>
