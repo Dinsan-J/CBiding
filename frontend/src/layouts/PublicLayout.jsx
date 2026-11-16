@@ -90,8 +90,8 @@ export const PublicLayout = ({ children, tournament }) => {
     <div className="min-h-screen bg-canvas text-slate-100 flex flex-col font-sans">
       {/* Broadcast Top Navbar */}
       <header className="sticky top-0 z-40 bg-surface-card/95 backdrop-blur-md border-b border-border-subtle">
-        <div className="w-full max-w-[1600px] mx-auto px-3 sm:px-5 xl:px-6">
-          <div className="flex h-16 min-w-0 items-center gap-2 sm:gap-3">
+        <div className="w-full max-w-none mx-auto px-3 sm:px-5 xl:px-6 2xl:px-8">
+          <div className="flex h-16 min-w-0 items-center gap-2 sm:gap-4">
             {/* Branding / Logo */}
             <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 min-w-0">
               <Link to={homePath} className="flex items-center gap-2 group shrink-0">
@@ -116,8 +116,8 @@ export const PublicLayout = ({ children, tournament }) => {
             </div>
 
             {/* Keep navigation and tournament controls on this row; overflow scrolls on narrow screens. */}
-            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none">
-              <nav className="flex shrink-0 items-center gap-1">
+            <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto scrollbar-none xl:gap-4">
+              <nav className="flex min-w-max flex-1 items-center justify-center gap-1 xl:gap-1.5">
                 {navLinks.map((item) => (
                   <NavLink
                     key={item.path}
@@ -135,8 +135,8 @@ export const PublicLayout = ({ children, tournament }) => {
                   </NavLink>
                 ))}
               </nav>
-              <div className="flex shrink-0 items-center gap-2">
-                {publicTournaments.length > 0 && publicTournamentSelector('shrink-0 max-w-56')}
+              <div className="ml-auto flex shrink-0 items-center gap-2">
+                {publicTournaments.length > 0 && publicTournamentSelector('shrink-0 max-w-64')}
                 <DownloadAuctionPdfButton compact />
                 {currentStatus !== 'COMPLETED' && (
                   <Link
