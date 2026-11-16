@@ -101,7 +101,7 @@ exports.getPublicActiveAuction = async (req, res, next) => {
     const auction = await Auction.findOne({
       _id: tenant.activeAuctionId,
       tenantId: tenant._id
-    }).select('_id slug title status type currency currencyNotation startingPurse minSquadSize maxSquadSize maxOverseasPlayers minBasePrice timerSeconds currentLot');
+    }).select('_id slug title logoUrl status type currency currencyNotation startingPurse minSquadSize maxSquadSize maxOverseasPlayers minBasePrice timerSeconds currentLot');
 
     if (!auction) {
       return res.status(404).json({ success: false, error: 'The selected tournament could not be found.' });
@@ -127,7 +127,7 @@ exports.getPublicAuctions = async (req, res, next) => {
       tenantId: tenant._id,
       status: { $ne: 'DRAFT' }
     })
-      .select('_id slug title status type currency currencyNotation createdAt completedAt')
+      .select('_id slug title logoUrl status type currency currencyNotation createdAt completedAt')
       .sort({ createdAt: -1 });
 
     res.status(200).json({ success: true, count: auctions.length, data: auctions });

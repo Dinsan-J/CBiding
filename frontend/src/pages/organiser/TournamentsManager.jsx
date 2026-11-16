@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Trophy, Plus, Settings, Play, Pause, CheckCircle2, Trash2, Calendar, Radio } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Trophy, Plus, Settings, Play, Pause, CheckCircle2, Trash2, Calendar, Radio, ImagePlus, X } from 'lucide-react';
 import { useAuction } from '../../context/AuctionContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -8,6 +8,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { formatCurrency } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { api } from '../../services/api';
 
 export const TournamentsManager = () => {
   const { 
@@ -15,6 +16,7 @@ export const TournamentsManager = () => {
     activeTournament, 
     setActiveTournamentId, 
     createTournament, 
+    updateTournament,
     updateTournamentStatus, 
     deleteTournament 
   } = useAuction();
@@ -23,6 +25,21 @@ export const TournamentsManager = () => {
   const [filter, setFilter] = useState('ALL');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [brandingTournament, setBrandingTournament] = useState(null);
+  const [brandingFile, setBrandingFile] = useState(null);
+  const [brandingPreview, setBrandingPreview] = useState('');
+  const [removeBranding, setRemoveBranding] = useState(false);
+  const [isSavingBranding, setIsSavingBranding] = useState(false);
+
+  useEffect(() => {
+    if (!brandingFile) {
+      setBrandingPreview('');
+      return undefined;
+    }
+    const previewUrl = URL.createObjectURL(brandingFile);
+    setBrandingPreview(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [brandingFile]);
 
   // New Tournament Form State
   const [form, setForm] = useState({
@@ -112,6 +129,60 @@ export const TournamentsManager = () => {
       toast.error(error.message || 'Could not load the selected tournament.');
     } finally {
       setActionLoadingId(null);
+    }
+  };
+
+  const openBrandingEditor = (tournament) => {
+    setBrandingTournament(tournament);
+    setBrandingFile(null);
+    setRemoveBranding(false);
+  };
+
+  const closeBrandingEditor = () => {
+    if (isSavingBranding) return;
+    setBrandingTournament(null);
+    setBrandingFile(null);
+    setRemoveBranding(false);
+  };
+
+  const handleBrandingFileChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!supportedTypes.includes(file.type)) {
+      toast.error('Choose a JPG, PNG, WEBP, or GIF image.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('The tournament logo must be 5 MB or smaller.');
+      event.target.value = '';
+      return;
+    }
+    setBrandingFile(file);
+    setRemoveBranding(false);
+  };
+
+  const handleSaveBranding = async (event) => {
+    event.preventDefault();
+    if (!brandingTournament) return;
+    setIsSavingBranding(true);
+    try {
+      let logoUrl = brandingTournament.logoUrl || '';
+      if (brandingFile) logoUrl = (await api.uploadImage(brandingFile)).data.url;
+      if (removeBranding) logoUrl = '';
+
+      const result = await updateTournament(brandingTournament.id || brandingTournament._id, { logoUrl });
+      if (!result?.success) throw new Error(result?.error || 'Could not update the tournament logo.');
+
+      toast.success(logoUrl ? 'Tournament logo updated.' : 'Tournament logo removed.');
+      setBrandingTournament(null);
+      setBrandingFile(null);
+      setRemoveBranding(false);
+    } catch (error) {
+      toast.error(error.message || 'Could not update the tournament logo.');
+    } finally {
+      setIsSavingBranding(false);
     }
   };
 
@@ -226,6 +297,16 @@ export const TournamentsManager = () => {
                     Select Tournament
                   </Button>
                 )}
+
+                <Button
+                  size="xs"
+                  variant="outline"
+                  leftIcon={ImagePlus}
+                  onClick={() => openBrandingEditor(tourn)}
+                  title="Update tournament logo"
+                >
+                  Logo
+                </Button>
 
                 <Button
                   size="xs"
@@ -351,6 +432,63 @@ export const TournamentsManager = () => {
             </Button>
             <Button type="submit" variant="primary" disabled={isSubmitting}>
               {isSubmitting ? 'Creating...' : 'Create Tournament'}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* TOURNAMENT BRANDING MODAL */}
+      <Modal
+        isOpen={Boolean(brandingTournament)}
+        onClose={closeBrandingEditor}
+        title="Tournament Logo"
+        subtitle={brandingTournament ? `Choose the league mark shown in the public navigation for ${brandingTournament.title}.` : ''}
+      >
+        <form onSubmit={handleSaveBranding} className="space-y-5">
+          <div className="flex items-center gap-4 rounded-xl border border-border-subtle bg-surface-accent/60 p-4">
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-brand-cyan/30 bg-gradient-to-tr from-brand-cyan to-brand-emerald text-slate-950 shadow-glow-cyan">
+              {(brandingPreview || (!removeBranding && brandingTournament?.logoUrl)) ? (
+                <img
+                  src={brandingPreview || brandingTournament.logoUrl}
+                  alt={`${brandingTournament?.title || 'Tournament'} logo preview`}
+                  className="h-full w-full bg-surface-card object-contain p-1"
+                />
+              ) : <Trophy className="h-9 w-9" strokeWidth={2.5} />}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-white">Public league mark</p>
+              <p className="mt-1 text-xs text-slate-400">Use a square image for the clearest result. Maximum file size: 5 MB.</p>
+              {(brandingFile || brandingTournament?.logoUrl) && !removeBranding && (
+                <button
+                  type="button"
+                  onClick={() => { setBrandingFile(null); setRemoveBranding(true); }}
+                  className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-red-300 hover:text-red-200"
+                >
+                  <X className="h-3.5 w-3.5" /> Remove logo
+                </button>
+              )}
+              {removeBranding && <p className="mt-2 text-xs text-slate-400">A generated tournament icon will be shown instead.</p>}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="tournament-logo-file" className="block text-xs font-semibold uppercase tracking-wider text-slate-300">Upload logo from this device</label>
+            <input
+              id="tournament-logo-file"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={handleBrandingFileChange}
+              className="w-full rounded-lg border border-border-subtle bg-surface-card px-3 py-2 text-sm text-slate-300 file:mr-3 file:rounded-md file:border-0 file:bg-surface-accent file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white"
+            />
+            <p className="text-xs text-slate-500">JPG, PNG, WEBP, or GIF.</p>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 border-t border-border-subtle pt-4">
+            <Button variant="outline" type="button" disabled={isSavingBranding} onClick={closeBrandingEditor}>
+              Cancel
+            </Button>
+            <Button type="submit" variant="primary" disabled={isSavingBranding || (!brandingFile && !removeBranding)}>
+              {isSavingBranding ? 'Saving...' : 'Save Logo'}
             </Button>
           </div>
         </form>

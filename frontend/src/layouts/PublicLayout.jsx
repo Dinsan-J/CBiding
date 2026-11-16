@@ -8,6 +8,36 @@ import { api } from '../services/api';
 import { cn } from '../utils/cn';
 import { DownloadAuctionPdfButton } from '../components/layout/DownloadAuctionPdfButton';
 
+const tournamentMarkIcons = [Trophy, Shield, Radio, Users, BarChart3];
+
+const TournamentMark = ({ tournament }) => {
+  const [imageFailed, setImageFailed] = useState(false);
+  const logoUrl = tournament?.logoUrl;
+
+  useEffect(() => setImageFailed(false), [logoUrl]);
+
+  if (logoUrl && !imageFailed) {
+    return (
+      <img
+        src={logoUrl}
+        alt={`${tournament?.title || 'Tournament'} logo`}
+        onError={() => setImageFailed(true)}
+        className="h-9 w-9 shrink-0 rounded-xl border border-brand-cyan/25 bg-surface-accent object-contain p-0.5 shadow-glow-cyan"
+      />
+    );
+  }
+
+  const markKey = tournament?.slug || tournament?.title || 'bidx';
+  const markSeed = Array.from(markKey).reduce((total, character) => total + character.charCodeAt(0), 0);
+  const MarkIcon = tournamentMarkIcons[markSeed % tournamentMarkIcons.length];
+
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-cyan/30 bg-gradient-to-tr from-brand-cyan to-brand-emerald text-slate-950 shadow-glow-cyan" aria-hidden="true">
+      <MarkIcon className="h-5 w-5" strokeWidth={2.5} />
+    </div>
+  );
+};
+
 export const PublicLayout = ({ children, tournament }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -95,9 +125,7 @@ export const PublicLayout = ({ children, tournament }) => {
             {/* Branding / Logo */}
             <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 min-w-0">
               <Link to={homePath} className="flex items-center gap-2 group shrink-0">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-cyan to-brand-emerald flex items-center justify-center text-slate-950 font-black text-sm tracking-tight shadow-glow-cyan shrink-0">
-                  BX
-                </div>
+                <TournamentMark tournament={currentTournament} />
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="font-extrabold text-sm sm:text-base tracking-tight text-white group-hover:text-brand-cyan transition-colors truncate max-w-[80px] sm:max-w-xs">

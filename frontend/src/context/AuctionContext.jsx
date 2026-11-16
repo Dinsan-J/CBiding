@@ -1059,6 +1059,24 @@ export const AuctionProvider = ({ children }) => {
     }
   }, []);
 
+  // Action: Update tournament details (Authoritative Backend Execution)
+  const updateTournament = useCallback(async (auctionId, data) => {
+    try {
+      const res = await api.updateAuction(auctionId, data);
+      if (res?.success && res.data) {
+        const updatedTournament = normalizeAuction(res.data);
+        setTournaments(prev => prev.map(t =>
+          String(t.id || t._id) === String(auctionId) ? { ...t, ...updatedTournament } : t
+        ));
+        return { success: true, tournament: updatedTournament };
+      }
+      return { success: false, error: res?.error || 'Failed to update tournament' };
+    } catch (err) {
+      console.warn('[BidX Context] Update tournament failed:', err.message);
+      return { success: false, error: err.message };
+    }
+  }, []);
+
   // Action: Update Tournament Status (Authoritative Backend Execution)
   const updateTournamentStatus = useCallback(async (auctionId, status) => {
     try {
@@ -1238,6 +1256,7 @@ export const AuctionProvider = ({ children }) => {
       loadPublicTournament,
       selectionError,
       createTournament,
+      updateTournament,
       updateTournamentStatus,
       deleteTournament,
       teams,
