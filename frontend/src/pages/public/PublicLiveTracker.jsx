@@ -67,14 +67,19 @@ export const PublicLiveTracker = () => {
             </div>
             <Skeleton className="h-5 w-36 rounded" />
           </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8">
-            <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center lg:items-start gap-4">
-              <Skeleton className="w-48 h-60 sm:w-56 sm:h-[340px] xl:w-full xl:max-w-[300px] xl:h-[360px] rounded-2xl" />
-              <Skeleton className="h-9 w-56 rounded-lg" />
-              <Skeleton className="h-4 w-44 rounded" />
-              <Skeleton className="h-4 w-32 rounded" />
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-12 xl:gap-6">
+            <div className="lg:col-span-5">
+              <div className="grid grid-cols-[minmax(104px,0.72fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(145px,0.82fr)_minmax(0,1fr)] sm:gap-4 sm:p-4">
+                <Skeleton className="aspect-[4/5] max-h-[260px] w-full rounded-xl" />
+                <div className="space-y-3">
+                  <Skeleton className="h-7 w-4/5 rounded-lg" />
+                  <Skeleton className="h-3 w-3/4 rounded" />
+                  <Skeleton className="h-3 w-2/3 rounded" />
+                  <Skeleton className="h-12 w-full rounded-xl" />
+                </div>
+              </div>
             </div>
-            <div className="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+            <div className="lg:col-span-7 flex flex-col gap-4">
               <div className="grid grid-cols-2 gap-4">
                 <Skeleton className="h-44 rounded-2xl" />
                 <Skeleton className="h-44 rounded-2xl" />
@@ -149,9 +154,9 @@ export const PublicLiveTracker = () => {
           </p>
         </div>
       ) : (
-      <div className="relative rounded-3xl bg-gradient-to-br from-surface-card via-slate-900 to-canvas border border-brand-cyan/40 p-4 sm:p-6 xl:p-8 shadow-[0_0_50px_-15px_rgba(6,182,212,0.25)] overflow-hidden">
+      <div className="relative rounded-3xl bg-gradient-to-br from-surface-card via-slate-900 to-canvas border border-brand-cyan/40 p-4 sm:p-6 xl:p-7 shadow-[0_0_50px_-15px_rgba(6,182,212,0.25)] overflow-hidden">
         {/* Subtle Live Broadcast Header */}
-        <div className="flex items-center justify-between border-b border-border-subtle pb-4 mb-6">
+        <div className="mb-4 flex items-center justify-between border-b border-border-subtle pb-3 sm:mb-5">
           <div className="flex items-center gap-2.5">
             <span className="flex items-center gap-1.5 bg-red-500/10 text-brand-crimson border border-red-500/30 px-3 py-1 rounded-full text-xs font-black tracking-wider uppercase">
               <span className="w-2 h-2 rounded-full bg-brand-crimson animate-ping" />
@@ -169,47 +174,52 @@ export const PublicLiveTracker = () => {
         </div>
 
         {/* Hero Content: Player & Real-time Bid Duel */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 xl:gap-8 items-center">
+        <div className="grid grid-cols-1 items-stretch gap-5 lg:grid-cols-12 xl:gap-6">
           {/* Col 1: Player Portrait & Role Badge */}
-          <div className="lg:col-span-4 xl:col-span-3 flex flex-col items-center lg:items-start text-center lg:text-left">
-            <div className="relative w-full max-w-[280px] xl:max-w-[300px]">
-              <div className="relative flex h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border-2 border-border-subtle bg-slate-900 shadow-2xl sm:h-[340px] xl:h-[360px]">
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
-                  <Users className="w-20 h-20 mb-2" />
-                  <span className="text-xs font-mono tracking-widest text-slate-400">CRICKET ATHLETE</span>
+          <div className="min-w-0 lg:col-span-5">
+            <div className="grid h-full grid-cols-[minmax(104px,0.72fr)_minmax(0,1fr)] items-center gap-3 rounded-2xl border border-border-subtle bg-slate-950/30 p-3 sm:grid-cols-[minmax(145px,0.82fr)_minmax(0,1fr)] sm:gap-4 sm:p-4">
+              <div className="relative min-w-0">
+                <div className="relative aspect-[4/5] max-h-[260px] w-full overflow-hidden rounded-xl border border-border-subtle bg-slate-900 shadow-xl">
+                  <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
+                    <Users className="mb-2 h-20 w-20" />
+                    <span className="text-xs font-mono tracking-widest text-slate-400">CRICKET ATHLETE</span>
+                  </div>
+                  <img
+                    src={currentLotPlayer?.photoUrl || "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=500&auto=format&fit=crop&q=80"}
+                    alt={currentLotPlayer?.fullName}
+                    className="relative z-10 h-full w-full object-cover"
+                    onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                  />
                 </div>
-                <img
-                  src={currentLotPlayer?.photoUrl || "https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=500&auto=format&fit=crop&q=80"}
-                  alt={currentLotPlayer?.fullName}
-                  className="relative z-10 w-full h-full object-cover"
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
+                <div className="absolute bottom-2 left-2 z-20 max-w-[calc(100%-1rem)]">
+                  <span className={`inline-flex max-w-full truncate rounded-lg border px-2.5 py-1 text-[10px] font-bold shadow-lg sm:text-xs ${getRoleBadgeClass(currentLotPlayer?.role)}`}>
+                    {getRoleLabel(currentLotPlayer?.role)}
+                  </span>
+                </div>
               </div>
-              <div className="absolute -bottom-3 left-1/2 z-20 -translate-x-1/2 lg:left-4 lg:translate-x-0">
-                <span className={`px-3 py-1 text-xs font-bold rounded-lg border shadow-lg ${getRoleBadgeClass(currentLotPlayer?.role)}`}>
-                  {getRoleLabel(currentLotPlayer?.role)}
-                </span>
-              </div>
-            </div>
 
-            <div className="mt-6 w-full max-w-[280px] xl:max-w-[300px]">
-              <h2 className="text-2xl sm:text-3xl font-black leading-tight tracking-tight text-white">
-                {currentLotPlayer?.fullName}
-              </h2>
-              <p className="mt-2 text-xs leading-relaxed text-slate-300">
-                {[currentLotPlayer?.country, currentLotPlayer?.battingStyle, currentLotPlayer?.bowlingStyle].filter(Boolean).join(' • ')}
-              </p>
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-border-subtle bg-surface-accent/70 px-3.5 py-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Base Price</span>
-                <strong className="font-mono text-sm font-bold text-white">
-                  {formatExactCurrency(currentLotPlayer?.basePrice, activeTournament.currency)}
-                </strong>
+              <div className="min-w-0 py-1">
+                <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.16em] text-brand-cyan sm:text-[10px]">Player on the block</p>
+                <h2 className="break-words text-lg font-black leading-tight tracking-tight text-white sm:text-2xl xl:text-3xl">
+                  {currentLotPlayer?.fullName}
+                </h2>
+                <div className="mt-2 space-y-1.5 text-[10px] leading-snug text-slate-300 sm:text-xs">
+                  {currentLotPlayer?.country && <p className="break-words">{currentLotPlayer.country}</p>}
+                  {currentLotPlayer?.battingStyle && <p className="break-words"><span className="text-slate-500">Batting</span> · {currentLotPlayer.battingStyle}</p>}
+                  {currentLotPlayer?.bowlingStyle && <p className="break-words"><span className="text-slate-500">Bowling</span> · {currentLotPlayer.bowlingStyle}</p>}
+                </div>
+                <div className="mt-3 rounded-xl border border-border-subtle bg-surface-accent/80 px-2.5 py-2 sm:mt-4 sm:px-3 sm:py-2.5">
+                  <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400 sm:text-[10px]">Base price</span>
+                  <strong className="mt-0.5 block break-words font-mono text-xs font-bold text-white sm:text-sm">
+                    {formatExactCurrency(currentLotPlayer?.basePrice, activeTournament.currency)}
+                  </strong>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Col 2: The Bidding Board (Current Bid, Leading Team, Live Timer) */}
-          <div className="lg:col-span-8 xl:col-span-9 flex min-w-0 flex-col gap-5 xl:gap-6">
+          <div className="min-w-0 lg:col-span-7 flex flex-col gap-4 xl:gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Current High Bid Card */}
               <div className="p-6 rounded-2xl bg-surface-accent/70 border border-border-subtle flex flex-col justify-between">
