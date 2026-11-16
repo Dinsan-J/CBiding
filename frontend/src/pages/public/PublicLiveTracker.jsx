@@ -291,6 +291,60 @@ export const PublicLiveTracker = () => {
                 </span>
               </div>
             </div>
+
+            {/* Recent bids use the remaining board space and provide an informative idle state. */}
+            <div className="rounded-2xl border border-border-subtle bg-surface-card/80 p-3.5 sm:p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4 text-brand-cyan" />
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-white">Recent bid activity</h4>
+                </div>
+                <span className="font-mono text-[10px] text-slate-400">{activeLot.bidCount} bids</span>
+              </div>
+
+              {activeLot.bidHistory?.length ? (
+                <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {activeLot.bidHistory.slice(0, 3).map((bid, index) => {
+                    const bidTeamId = bid.teamId && typeof bid.teamId === 'object'
+                      ? (bid.teamId._id || bid.teamId.id)
+                      : bid.teamId;
+                    const team = teams.find(item => String(item.id || item._id) === String(bidTeamId));
+
+                    return (
+                      <div
+                        key={bid.id || `${bidTeamId}-${bid.timestamp || index}`}
+                        className="flex min-w-0 items-center gap-2 rounded-xl border border-border-subtle bg-surface-accent/60 px-2.5 py-2"
+                      >
+                        <TeamMark team={team} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[10px] font-bold text-white" />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <span className="truncate text-[11px] font-semibold text-white">{team?.name || 'Franchise'}</span>
+                            {index === 0 && <span className="shrink-0 rounded bg-brand-cyan/15 px-1 py-0.5 text-[8px] font-bold uppercase text-brand-cyan">Leading</span>}
+                          </div>
+                          <span className="text-[10px] text-slate-500">{bid.timestamp || 'Latest bid'}</span>
+                        </div>
+                        <strong className="shrink-0 font-mono text-[11px] font-bold text-brand-emerald">
+                          {formatCurrency(bid.amount, activeTournament.currency)}
+                        </strong>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-col gap-2 rounded-xl bg-surface-accent/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-200">Waiting for the opening bid</p>
+                    <p className="mt-0.5 text-[10px] text-slate-400">The player is available at the base price.</p>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-slate-950/40 px-3 py-2 sm:min-w-40 sm:flex-col sm:items-start sm:gap-0">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Opening bid</span>
+                    <strong className="font-mono text-xs font-bold text-brand-cyan">
+                      {formatExactCurrency(currentLotPlayer?.basePrice, activeTournament.currency)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
